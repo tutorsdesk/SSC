@@ -42,7 +42,12 @@ abstract final class PaperImageCodec {
       width: picture.width,
       height: picture.height,
       numChannels: 3,
-    )..fill(img.ColorRgb8(255, 255, 255));
+    );
+    for (var y = 0; y < flat.height; y++) {
+      for (var x = 0; x < flat.width; x++) {
+        flat.setPixelRgb(x, y, 255, 255, 255);
+      }
+    }
     img.compositeImage(flat, picture);
     final jpg = img.encodeJpg(flat, quality: quality);
     return PreparedPicture(
