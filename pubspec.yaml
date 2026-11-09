@@ -73,6 +73,8 @@ flutter:
     - assets/fonts/DejaVuSans-Bold.ttf
     - assets/dictionary/en_words.txt
     - assets/dictionary/LICENSE-SCOWL.txt
+    - assets/dictionary/bn_words.txt
+    - assets/dictionary/LICENSE-bangla-wordlist.txt
 
 flutter_launcher_icons:
   android: true
