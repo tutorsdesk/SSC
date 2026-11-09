@@ -625,7 +625,8 @@ List<DocParagraph> replaceWordEverywhere(
   String replacement,
 ) {
   final pattern = RegExp(
-    '(?<![A-Za-z])${RegExp.escape(word)}(?![A-Za-z])',
+    '(?<![A-Za-z\\u0980-\\u09FF])${RegExp.escape(word)}'
+    '(?![A-Za-z\\u0980-\\u09FF])',
     caseSensitive: false,
   );
   return [

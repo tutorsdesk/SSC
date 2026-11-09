@@ -652,10 +652,21 @@ class _PapersLibraryScreenState extends State<PapersLibraryScreen>
           IconButton(
             tooltip: 'Paper editor',
             icon: const AppIcon(PhosphorIcons.notePencil),
-            onPressed: () => Navigator.push<void>(
-              context,
-              MaterialPageRoute(builder: (_) => const PaperEditorListScreen()),
-            ),
+            onPressed: () async {
+              // Professional-only: the guard explains the lock for other plans.
+              final allowed = await SubscriptionGuard.require(
+                context,
+                PremiumFeature.paperEditor,
+                title: 'Question Paper Editor',
+              );
+              if (!allowed || !context.mounted) return;
+              await Navigator.push<void>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const PaperEditorListScreen(),
+                ),
+              );
+            },
           ),
         ],
       ),

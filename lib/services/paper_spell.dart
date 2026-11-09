@@ -1,40 +1,72 @@
 import 'package:flutter/services.dart';
 
-/// English spell-check for the paper editor.
+/// Spell-check for the paper editor, English and Bangla.
 ///
-/// The word list is bundled as `assets/dictionary/en_words.txt` (SCOWL word
-/// lists, see `LICENSE-SCOWL.txt`). Only Latin-script words are checked;
-/// Bengali text is not spell-checked.
+/// The English word list is bundled as `assets/dictionary/en_words.txt`
+/// (SCOWL word lists, see `LICENSE-SCOWL.txt`). The Bangla list is optional:
+/// `assets/dictionary/bn_words.txt`, one correctly spelled word per line. When
+/// it is not bundled, Bangla words count as correct, so nothing is flagged
+/// wrongly. Acronyms, contractions and single letters are never flagged.
 abstract final class PaperSpell {
   static const String assetPath = 'assets/dictionary/en_words.txt';
-  static final RegExp _token = RegExp(r"[A-Za-z]+(?:['’][A-Za-z]+)*");
+  static const String banglaAssetPath = 'assets/dictionary/bn_words.txt';
+
+  /// Latin words, plus runs of Bengali letters and vowel signs.
+  static final RegExp _token = RegExp(
+    r"[A-Za-z]+(?:['’][A-Za-z]+)*|"
+    r"[\u0985-\u09B9\u09BC-\u09CE\u09D7\u09DC\u09DD\u09DF-\u09E3]+",
+  );
   static final RegExp _plain = RegExp(r'^[a-z]+$');
+  static final RegExp _bengaliWord = RegExp(
+    r'^[\u0985-\u09B9\u09BC-\u09CE\u09D7\u09DC\u09DD\u09DF-\u09E3]+$',
+  );
 
   static Set<String>? _words;
+  static Set<String>? _banglaWords;
   static Future<void>? _loading;
 
-  /// True once the word list is loaded.
+  /// True once the English word list is loaded.
   static bool get isReady => _words != null;
 
-  /// Loads the word list once. Safe to call repeatedly.
+  /// True when a Bangla word list is bundled and loaded.
+  static bool get banglaReady => _banglaWords != null;
+
+  /// True if [word] is written in Bengali letters.
+  static bool isBangla(String word) => _bengaliWord.hasMatch(word);
+
+  /// Loads the word lists once. Safe to call repeatedly.
   static Future<void> load() => _loading ??= _doLoad();
 
   static Future<void> _doLoad() async {
-    final raw = await rootBundle.loadString(assetPath);
+    _words = _parse(await rootBundle.loadString(assetPath));
+    try {
+      _banglaWords = _parse(await rootBundle.loadString(banglaAssetPath));
+    } catch (_) {
+      // No Bangla list bundled: Bangla text simply is not checked.
+      _banglaWords = null;
+    }
+  }
+
+  static Set<String> _parse(String raw) {
     final words = <String>{};
     for (final line in raw.split('\n')) {
       final w = line.trim();
       if (w.isNotEmpty) words.add(w);
     }
-    _words = words;
+    return words;
   }
 
-  /// True if [word] is a known English word. Words that cannot be checked
-  /// (non-Latin, very short, acronyms, contractions) count as correct.
+  /// True if [word] is a known word. Words that cannot be checked
+  /// (no list loaded, non-Latin, very short, acronyms, contractions) count as
+  /// correct.
   static bool isCorrect(String word) {
+    if (word.length < 2) return true;
+    if (isBangla(word)) {
+      final bn = _banglaWords;
+      return bn == null || bn.contains(word);
+    }
     final words = _words;
     if (words == null) return true;
-    if (word.length < 2) return true;
     if (word.contains("'") || word.contains('’')) return true;
     if (word == word.toUpperCase()) return true; // acronym such as "MCQ"
     final w = word.toLowerCase();
@@ -44,7 +76,9 @@ abstract final class PaperSpell {
 
   /// Ranges (start, end exclusive) of misspelled words in [text].
   static List<(int, int)> misspellings(String text) {
-    if (_words == null || text.isEmpty) return const [];
+    if ((_words == null && _banglaWords == null) || text.isEmpty) {
+      return const [];
+    }
     final out = <(int, int)>[];
     for (final m in _token.allMatches(text)) {
       if (!isCorrect(m.group(0)!)) out.add((m.start, m.end));
@@ -56,13 +90,26 @@ abstract final class PaperSpell {
   /// of letters ("teh" for "the") counts as one edit, and words with the same
   /// letters rank above other words at the same distance.
   static List<String> suggestions(String word, {int limit = 5}) {
+    if (isBangla(word)) {
+      final bn = _banglaWords;
+      if (bn == null) return const [];
+      return _nearest(word, bn, limit);
+    }
     final words = _words;
     if (words == null) return const [];
     final target = word.toLowerCase();
     if (!_plain.hasMatch(target)) return const [];
+    return _nearest(target, words, limit);
+  }
+
+  static List<String> _nearest(
+    String target,
+    Iterable<String> candidates,
+    int limit,
+  ) {
     final letters = _sortedLetters(target);
     final found = <(int, int, String)>[];
-    for (final candidate in words) {
+    for (final candidate in candidates) {
       if ((candidate.length - target.length).abs() > 2) continue;
       final d = _distance(target, candidate, 2);
       if (d > 2) continue;

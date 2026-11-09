@@ -41,7 +41,7 @@ SubscriptionStatus subscriptionStatusFromString(String? value) {
   );
 }
 
-enum PremiumFeature { aiAssistant, omrScanner, watermarkFree }
+enum PremiumFeature { aiAssistant, omrScanner, watermarkFree, paperEditor }
 
 enum UpgradeReason {
   aiAssistant,
@@ -49,6 +49,7 @@ enum UpgradeReason {
   omrScanner,
   subjectLimit,
   watermark,
+  paperEditor,
 }
 
 /// The one entitlement object consumed by feature code.
@@ -261,6 +262,9 @@ class SubscriptionEntitlement {
         current.aiAssistant && current.aiDailyLimit > 0,
       PremiumFeature.omrScanner => current.omrScanner,
       PremiumFeature.watermarkFree => current.noWatermark,
+      // The question paper editor is a Professional-only feature.
+      PremiumFeature.paperEditor =>
+        current.plan == SubscriptionPlan.professional,
     };
   }
 
@@ -277,6 +281,7 @@ class SubscriptionEntitlement {
       PremiumFeature.aiAssistant => UpgradeReason.aiAssistant,
       PremiumFeature.omrScanner => UpgradeReason.omrScanner,
       PremiumFeature.watermarkFree => UpgradeReason.watermark,
+      PremiumFeature.paperEditor => UpgradeReason.paperEditor,
     };
   }
 

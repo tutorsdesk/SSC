@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tutors_desk/models/paper_document.dart';
+import 'package:tutors_desk/services/paper_spell.dart';
 
 DocParagraph _para(
   String text, {
@@ -345,6 +346,25 @@ void main() {
       expect(back.showPageNumbers, isTrue);
       expect(back.pageHeader, '');
       expect(back.pageFooter, '');
+    });
+  });
+
+  group('Bangla', () {
+    test('Bengali words are recognised and Latin words are not', () {
+      expect(PaperSpell.isBangla('বাংলা'), isTrue);
+      expect(PaperSpell.isBangla('hello'), isFalse);
+      expect(PaperSpell.isBangla('বাংলা2'), isFalse);
+    });
+
+    test('a Bengali word is not replaced inside a longer Bengali word', () {
+      final list = [_para('করা কর karo', id: 'p1')];
+      final next = replaceWordEverywhere(list, 'কর', 'ভালো');
+      expect(next.single.text, 'করা ভালো karo');
+    });
+
+    test('without a Bangla list, Bangla words are not flagged', () {
+      expect(PaperSpell.isCorrect('কোনোকিছু'), isTrue);
+      expect(PaperSpell.suggestions('কোনোকিছু'), isEmpty);
     });
   });
 }

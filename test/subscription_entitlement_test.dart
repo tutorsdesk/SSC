@@ -57,6 +57,41 @@ void main() {
       },
     );
 
+    test('the paper editor is available on Professional only', () {
+      expect(
+        SubscriptionEntitlement.free().canUse(PremiumFeature.paperEditor),
+        isFalse,
+      );
+      expect(
+        SubscriptionEntitlement.defaults(SubscriptionPlan.basic)
+            .canUse(PremiumFeature.paperEditor),
+        isFalse,
+      );
+      expect(
+        SubscriptionEntitlement.defaults(SubscriptionPlan.pro)
+            .canUse(PremiumFeature.paperEditor),
+        isFalse,
+      );
+      final pro = SubscriptionEntitlement.defaults(
+        SubscriptionPlan.professional,
+      );
+      expect(pro.canUse(PremiumFeature.paperEditor), isTrue);
+      expect(
+        pro.reasonFor(PremiumFeature.paperEditor),
+        isNull,
+      );
+      expect(
+        SubscriptionEntitlement.defaults(SubscriptionPlan.pro)
+            .reasonFor(PremiumFeature.paperEditor),
+        UpgradeReason.paperEditor,
+      );
+      final expired = SubscriptionEntitlement.defaults(
+        SubscriptionPlan.professional,
+        status: SubscriptionStatus.expired,
+      );
+      expect(expired.canUse(PremiumFeature.paperEditor), isFalse);
+    });
+
     test('Professional has unlimited subjects and OMR', () {
       final e = SubscriptionEntitlement.defaults(SubscriptionPlan.professional);
       expect(e.subjectLimit, isNull);

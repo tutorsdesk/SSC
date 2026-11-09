@@ -45,6 +45,8 @@ class SubscriptionGuard {
         'AI Assistant requires an active Pro or Professional plan.',
       UpgradeReason.omrScanner => 'OMR Scanner is available on Professional.',
       UpgradeReason.watermark => 'Upgrade to remove the PDF watermark.',
+      UpgradeReason.paperEditor =>
+        'The Question Paper Editor is available on the Professional plan.',
       UpgradeReason.subjectLimit =>
         'Your current plan has reached its subject limit.',
       null => 'This feature is not available on your current plan.',
