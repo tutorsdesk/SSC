@@ -802,7 +802,7 @@ class _PapersLibraryScreenState extends State<PapersLibraryScreen>
       );
 
   Widget _iconBtn(
-    PhosphorDuotoneObject icon,
+    PhosphorDuotoneIconData icon,
     String label,
     VoidCallback onTap, {
     Color? color,
