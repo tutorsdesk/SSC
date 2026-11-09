@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tutors_desk/models/paper_document.dart';
@@ -170,6 +172,174 @@ void main() {
       });
       expect(back.paragraphs.single.kind, ParaKind.normal);
       expect(back.paragraphs.single.styles.length, 2);
+    });
+  });
+
+  group('pictures', () {
+    final bytes = Uint8List.fromList(
+      [137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3],
+    );
+
+    test('picture JSON keeps bytes, aspect and width', () {
+      final img = DocImage(bytes: bytes, aspect: 0.5, widthFraction: 0.35);
+      final back = DocImage.fromJson(img.toJson());
+      expect(back.bytes, bytes);
+      expect(back.aspect, 0.5);
+      expect(back.widthFraction, 0.35);
+    });
+
+    test('a picture block survives a document round trip and is counted', () {
+      final doc = PaperDocument(
+        id: 'img',
+        title: 'Pictures',
+        paragraphs: [
+          DocParagraph(
+            id: 'pic',
+            kind: ParaKind.image,
+            image: DocImage(bytes: bytes, aspect: 0.75),
+          ),
+          _para('After the picture', id: 'txt'),
+        ],
+      );
+      expect(doc.pictureCount, 1);
+      final back = PaperDocument.fromJson(doc.toJson());
+      expect(back.pictureCount, 1);
+      expect(back.paragraphs.first.kind, ParaKind.image);
+      expect(back.paragraphs.first.image!.bytes, bytes);
+      expect(back.paragraphs.last.text, 'After the picture');
+    });
+
+    test('a damaged picture does not stop the document loading', () {
+      final back = PaperDocument.fromJson({
+        'id': 'x',
+        'title': 'T',
+        'paragraphs': [
+          {'id': 'p', 'kind': 'image', 'text': '', 'image': {'data': ''}},
+        ],
+      });
+      expect(back.paragraphs.single.image, isNotNull);
+    });
+  });
+
+  group('tables and cells', () {
+    test('a blank table has the requested size and editable cells', () {
+      final t = DocTable.blank(2, 3);
+      expect(t.rowCount, 2);
+      expect(t.columnCount, 3);
+      for (final row in t.rows) {
+        for (final cell in row) {
+          expect(cell.text, '');
+          expect(cell.id, isNotEmpty);
+        }
+      }
+    });
+
+    test('inserting and deleting rows and columns changes the size', () {
+      final t = DocTable.blank(2, 2);
+      expect(t.insertRow(1).rowCount, 3);
+      expect(t.deleteRow(0).rowCount, 1);
+      expect(t.insertColumn(0).columnCount, 3);
+      expect(t.deleteColumn(2).columnCount, 2);
+    });
+
+    test('a table survives a document round trip with cell text', () {
+      final table = DocTable([
+        [_para('Name', id: 'c00'), _para('Marks', id: 'c01')],
+        [_para('Rahim', id: 'c10'), _para('80', id: 'c11')],
+      ]);
+      final doc = PaperDocument(
+        id: 'tbl',
+        title: 'Table',
+        paragraphs: [
+          DocParagraph(id: 'tb', kind: ParaKind.table, table: table),
+        ],
+      );
+      expect(doc.tableCount, 1);
+      final back = PaperDocument.fromJson(doc.toJson());
+      final t = back.paragraphs.single.table!;
+      expect(t.rowCount, 2);
+      expect(t.columnCount, 2);
+      expect(t.rows[1][0].text, 'Rahim');
+      expect(t.rows[1][1].text, '80');
+    });
+
+    test('locateCell finds a cell by its id', () {
+      final list = [
+        DocParagraph(
+          id: 'tb',
+          kind: ParaKind.table,
+          table: DocTable([
+            [_para('a', id: 'c00'), _para('b', id: 'c01')],
+            [_para('c', id: 'c10'), _para('d', id: 'c11')],
+          ]),
+        ),
+      ];
+      final ref = locateCell(list, 'c11');
+      expect(ref, isNotNull);
+      expect(ref!.tableId, 'tb');
+      expect(ref.row, 1);
+      expect(ref.col, 1);
+      expect(locateCell(list, 'missing'), isNull);
+    });
+
+    test('replaceById edits one cell and leaves the others alone', () {
+      final list = [
+        DocParagraph(
+          id: 'tb',
+          kind: ParaKind.table,
+          table: DocTable([
+            [_para('a', id: 'c00'), _para('b', id: 'c01')],
+          ]),
+        ),
+      ];
+      final next = replaceById(list, 'c01', _para('Changed', id: 'c01'));
+      final row = next.single.table!.rows.single;
+      expect(row[0].text, 'a');
+      expect(row[1].text, 'Changed');
+      expect(list.single.table!.rows.single[1].text, 'b');
+    });
+
+    test('replaceWordEverywhere also changes words inside table cells', () {
+      final list = [
+        _para('teh start', id: 'p1'),
+        DocParagraph(
+          id: 'tb',
+          kind: ParaKind.table,
+          table: DocTable([
+            [_para('teh cell', id: 'c00')],
+          ]),
+        ),
+      ];
+      final next = replaceWordEverywhere(list, 'teh', 'the');
+      expect(next.first.text, 'the start');
+      expect(next.last.table!.rows.single.single.text, 'the cell');
+    });
+  });
+
+  group('header and footer', () {
+    test('page header, footer and page numbers survive a round trip', () {
+      final doc = PaperDocument(
+        id: 'hf',
+        title: 'Header test',
+        header: const PaperHeader(school: 'Ideal School', exam: 'Half Yearly'),
+        pageHeader: 'Class 8 — Mathematics',
+        pageFooter: 'Page footer text',
+        showPageNumbers: false,
+        paragraphs: [_para('Body')],
+      );
+      final back = PaperDocument.fromJson(doc.toJson());
+      expect(back.header.school, 'Ideal School');
+      expect(back.header.exam, 'Half Yearly');
+      expect(back.pageHeader, 'Class 8 — Mathematics');
+      expect(back.pageFooter, 'Page footer text');
+      expect(back.showPageNumbers, isFalse);
+    });
+
+    test('page numbers are shown unless turned off', () {
+      final back = PaperDocument.fromJson({'id': 'x', 'title': 'T'});
+      expect(back.showPageNumbers, isTrue);
+      expect(back.pageHeader, '');
+      expect(back.pageFooter, '');
     });
   });
 }

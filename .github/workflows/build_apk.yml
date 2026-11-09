@@ -184,7 +184,7 @@ jobs:
             # Only ever stage source: build output and logs must not ride along.
             git add lib test tool
             if ! git diff --cached --quiet; then
-              git commit -q -m 'Apply dart format to ${GITHUB_SHA:0:7}'
+              git commit -q -m "Apply dart format to ${GITHUB_SHA:0:7}"
               git push -q origin "HEAD:${GITHUB_REF#refs/heads/}"
               echo 'Formatting normalised and pushed; re-run for a clean gate.'
             fi
