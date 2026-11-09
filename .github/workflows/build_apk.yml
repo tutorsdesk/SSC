@@ -85,8 +85,9 @@ jobs:
       - name: Install Playwright Chromium
         working-directory: web-admin
         run: |
-          npx playwright --version
-          npx playwright install chromium
+          set -o pipefail
+          npx playwright --version 2>&1 | tee ../playwright-install.log
+          npx playwright install chromium 2>&1 | tee -a ../playwright-install.log
       - name: Install Playwright system libraries
         working-directory: web-admin
         run: npx playwright install-deps chromium
@@ -106,7 +107,7 @@ jobs:
           set +e
           {
             echo "## Admin test failure — run $GITHUB_RUN_NUMBER, ${GITHUB_SHA:0:7}"
-            for f in admin-unit.log admin-browser.log subscription-rls.log; do
+            for f in admin-unit.log playwright-install.log admin-browser.log subscription-rls.log; do
               if [ -s "$f" ]; then
                 echo
                 echo "### tail of $f"
