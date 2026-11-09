@@ -20,7 +20,9 @@ permissions:
 
 jobs:
   security-tests:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to Ubuntu 26.04, which Playwright 1.55.1
+    # cannot install Chromium on. Move this only with a Playwright upgrade.
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       pull-requests: write
