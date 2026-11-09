@@ -84,7 +84,12 @@ jobs:
           npm test 2>&1 | tee ../admin-unit.log
       - name: Install Playwright Chromium
         working-directory: web-admin
-        run: npx playwright install --with-deps chromium
+        run: |
+          npx playwright --version
+          npx playwright install chromium
+      - name: Install Playwright system libraries
+        working-directory: web-admin
+        run: npx playwright install-deps chromium
       - name: Admin browser tests
         working-directory: web-admin
         run: |
