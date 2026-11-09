@@ -239,7 +239,7 @@ void main() {
       expect(t.insertRow(1).rowCount, 3);
       expect(t.deleteRow(0).rowCount, 1);
       expect(t.insertColumn(0).columnCount, 3);
-      expect(t.deleteColumn(2).columnCount, 2);
+      expect(t.deleteColumn(1).columnCount, 1);
     });
 
     test('a table survives a document round trip with cell text', () {
