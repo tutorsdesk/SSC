@@ -12,8 +12,7 @@ abstract final class PaperPage {
   static const double marginTopPt = 62;
   static const double marginBottomPt = 66;
   static const double contentWidthPt = widthPt - marginLeftPt - marginRightPt;
-  static const double contentHeightPt =
-      heightPt - marginTopPt - marginBottomPt;
+  static const double contentHeightPt = heightPt - marginTopPt - marginBottomPt;
 
   /// Width of the number column for questions and options.
   static const double gutterPt = 26;
@@ -207,8 +206,7 @@ class HeaderLine {
 }
 
 List<HeaderLine> headerLinesOf(PaperHeader h) => [
-      if (h.school.trim().isNotEmpty)
-        HeaderLine(h.school.trim(), 17, true, 4),
+      if (h.school.trim().isNotEmpty) HeaderLine(h.school.trim(), 17, true, 4),
       if (h.exam.trim().isNotEmpty) HeaderLine(h.exam.trim(), 14, true, 4),
       if (h.subject.trim().isNotEmpty)
         HeaderLine(h.subject.trim(), 13, false, 4),

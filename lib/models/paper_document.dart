@@ -269,8 +269,7 @@ class DocTable {
 
   DocTable insertRow(int at) {
     final cols = columnCount < 1 ? 1 : columnCount;
-    final next = [...rows]
-      ..insert(_clampInt(at, 0, rows.length), [
+    final next = [...rows]..insert(_clampInt(at, 0, rows.length), [
         for (var c = 0; c < cols; c++) newCell(),
       ]);
     return DocTable(next);

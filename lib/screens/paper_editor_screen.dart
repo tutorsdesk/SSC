@@ -951,8 +951,10 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
     void flag(TextFlag f) => _fieldState?.applyFlag(f);
     void align(ParaAlign a) => _setAlign(a);
     return [
-      _tool(PhosphorIcons.arrowUUpLeft, 'Undo', _undo.isEmpty ? null : _undoStep),
-      _tool(PhosphorIcons.arrowUUpRight, 'Redo', _redo.isEmpty ? null : _redoStep),
+      _tool(
+          PhosphorIcons.arrowUUpLeft, 'Undo', _undo.isEmpty ? null : _undoStep),
+      _tool(PhosphorIcons.arrowUUpRight, 'Redo',
+          _redo.isEmpty ? null : _redoStep),
       _sep(),
       _styleDropdown(),
       const SizedBox(width: 6),
@@ -1068,9 +1070,12 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
   List<Widget> _fileTools() => [
         _chip(PhosphorIcons.floppyDisk, 'Save', _saveNow),
         _sep(),
-        _chip(PhosphorIcons.downloadSimple, 'Save a copy to a file', _exportCopy),
-        _chip(PhosphorIcons.uploadSimple, 'Open a copy from a file', _importCopy),
-        _chip(PhosphorIcons.clockCounterClockwise, 'Backups of this paper', _showBackups),
+        _chip(
+            PhosphorIcons.downloadSimple, 'Save a copy to a file', _exportCopy),
+        _chip(
+            PhosphorIcons.uploadSimple, 'Open a copy from a file', _importCopy),
+        _chip(PhosphorIcons.clockCounterClockwise, 'Backups of this paper',
+            _showBackups),
         _sep(),
         _chip(
           PhosphorIcons.printer,

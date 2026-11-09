@@ -69,8 +69,7 @@ void main() {
       final text = List.generate(60, (i) => 'Line $i of the text').join(' ');
       final doc = PaperDocument.blank(id: 'long').copyWith(
         paragraphs: [
-          for (var i = 0; i < 40; i++)
-            DocParagraph(id: 'p$i', text: text),
+          for (var i = 0; i < 40; i++) DocParagraph(id: 'p$i', text: text),
         ],
       );
       final layout = PaperLayout.compute(doc, 1);

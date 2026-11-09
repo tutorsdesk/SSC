@@ -74,7 +74,8 @@ abstract final class PaperDocumentRender {
     final w = (PaperPage.widthPt * s).round();
     final h = (PaperPage.heightPt * s).round();
     final recorder = ui.PictureRecorder();
-    final canvas = ui.Canvas(recorder, ui.Rect.fromLTWH(0, 0, w * 1.0, h * 1.0));
+    final canvas =
+        ui.Canvas(recorder, ui.Rect.fromLTWH(0, 0, w * 1.0, h * 1.0));
     paintPage(canvas, doc, layout, pageIndex, images);
     final picture = recorder.endRecording();
     final image = await picture.toImage(w, h);
@@ -109,7 +110,8 @@ abstract final class PaperDocumentRender {
 
     final pageHeader = doc.pageHeader.trim();
     if (pageHeader.isNotEmpty) {
-      _paintCentred(canvas, pageHeader, 9, s, contentX, (PaperPage.marginTopPt - 30) * s, contentW);
+      _paintCentred(canvas, pageHeader, 9, s, contentX,
+          (PaperPage.marginTopPt - 30) * s, contentW);
     }
     final footer = [
       doc.pageFooter.trim(),
@@ -117,7 +119,8 @@ abstract final class PaperDocumentRender {
         'Page ${toBanglaNumber(pageIndex + 1)} of ${toBanglaNumber(layout.pageCount)}',
     ].where((t) => t.isNotEmpty).join('     |     ');
     if (footer.isNotEmpty) {
-      _paintCentred(canvas, footer, 9, s, contentX, (PaperPage.heightPt - 44) * s, contentW);
+      _paintCentred(canvas, footer, 9, s, contentX,
+          (PaperPage.heightPt - 44) * s, contentW);
     }
 
     final numbers = doc.questionNumbers;
