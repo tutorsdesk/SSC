@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
+import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -47,6 +48,23 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        // App updates: the device ABI, and handing a verified APK to the
+        // system installer. Android still asks the user to confirm.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.tutorsdesk.app/update")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "deviceAbi" -> result.success(Build.SUPPORTED_ABIS.firstOrNull() ?: "")
+                    "installApk" -> {
+                        val path = call.argument<String>("path")
+                        if (path == null) {
+                            result.error("bad_args", "path is required", null)
+                        } else {
+                            result.success(installApk(path))
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -229,5 +247,28 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    /// Opens the system installer for [path]. Returns `started`, or
+    /// `needs_permission` after sending the user to the install-apps setting.
+    private fun installApk(path: String): String {
+        val file = File(path)
+        if (!file.isFile) return "missing"
+        if (Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
+            val settings = Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:$packageName"),
+            )
+            settings.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(settings)
+            return "needs_permission"
+        }
+        val uri = FileProvider.getUriForFile(this, "$packageName.updates", file)
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        startActivity(intent)
+        return "started"
     }
 }

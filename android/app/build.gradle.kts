@@ -94,6 +94,8 @@ dependencies {
     // (MainActivity's scanner pre-flight check + module download). Both
     // artifacts are already bundled at runtime by the ML Kit plugin;
     // these only expose the classes to the app's Kotlin.
+    // FileProvider for handing a downloaded app update to the installer.
+    implementation("androidx.core:core:1.13.1")
     implementation("com.google.android.gms:play-services-base:18.1.0")
     implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0")
 }

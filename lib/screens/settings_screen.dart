@@ -4,6 +4,8 @@ import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import '../services/app_settings.dart';
 import '../services/local_diagnostics.dart';
 import '../theme/app_theme.dart';
+import '../services/app_updater.dart';
+import '../widgets/app_update_dialogs.dart';
 import '../widgets/glass_card.dart';
 import 'profile_screen.dart';
 import '../widgets/app_icon.dart';
@@ -122,6 +124,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         value: value,
                         onChanged: AppSettings.setReduceMotion,
                       ),
+                    ),
+                  ),
+                ),
+                _section(
+                  'App updates',
+                  icon: PhosphorIcons.arrowsClockwise,
+                  child: GlassCard(
+                    padding: EdgeInsets.zero,
+                    child: ListTile(
+                      title: const Text('Check for updates'),
+                      subtitle: Text(
+                        AppUpdater.currentBuild == 0
+                            ? 'Installed build: unknown'
+                            : 'Installed build ${AppUpdater.currentBuild}',
+                      ),
+                      trailing: const AppIcon(PhosphorIcons.caretRight),
+                      onTap: () => AppUpdateDialogs.checkNow(context),
                     ),
                   ),
                 ),

@@ -74,7 +74,7 @@ jobs:
       - name: Build Windows release
         shell: pwsh
         run: |
-          flutter build windows --release --dart-define=ENABLE_PLAN_DIAGNOSTICS=true 2>&1 | Tee-Object -FilePath windows-build.log
+          flutter build windows --release --dart-define=ENABLE_PLAN_DIAGNOSTICS=true --dart-define=BUILD_NUMBER=${{ github.run_number }} 2>&1 | Tee-Object -FilePath windows-build.log
           if ($LASTEXITCODE -ne 0) {
             $tail = (Get-Content windows-build.log -Tail 30) -join '%0A'
             Write-Output "::error title=Windows build failed::$tail"
@@ -128,6 +128,7 @@ jobs:
 
           [Run]
           Filename: "{app}\Tutor'sDesk.exe"; Description: "Launch Tutor's Desk"; Flags: nowait postinstall skipifsilent
+          Filename: "{app}\Tutor'sDesk.exe"; Flags: nowait runasoriginaluser; Check: WizardSilent
           "@ | Set-Content -Path installer.iss -Encoding UTF8
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer.iss
           if (-not (Test-Path "Tutor'sDesk-Windows-Setup.exe")) {

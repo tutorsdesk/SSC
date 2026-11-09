@@ -10,6 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   http: ^1.2.0
+  crypto: ^3.0.3          # SHA-256 check of downloaded app updates
   shared_preferences: ^2.2.2
   pdf: ^3.11.0
   printing: ^5.15.0

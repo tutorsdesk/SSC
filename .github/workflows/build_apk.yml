@@ -256,6 +256,7 @@ jobs:
           printf '\n# Requested test build: release mode with the runner debug key.\nallowTestSigning=true\n' >> android/gradle.properties
           dart run flutter_launcher_icons
           flutter build apk --release --split-per-abi \
+            --build-number=${{ github.run_number }} \
             --dart-define=BUILD_NUMBER=${{ github.run_number }} \
             --dart-define=ENABLE_PLAN_DIAGNOSTICS=true \
             2>&1 | tee flutter-build.log
@@ -343,6 +344,34 @@ jobs:
               --notes "$notes"
           fi
 
+      - name: Publish update manifest for installed apps
+        if: ${{ env.BUILD_TEST_APK == 'true' && env.HAS_RELEASE_SIGNING != 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          cd build/app/outputs/flutter-apk
+          # The installed app compares this build number with its own and
+          # checks each APK's SHA-256 before it hands the file to Android.
+          python3 - <<'PY'
+          import hashlib, json, os, re
+          apks = {}
+          for name in sorted(os.listdir('.')):
+              m = re.fullmatch(r'app-(.+)-release\.apk', name)
+              if not m:
+                  continue
+              digest = hashlib.sha256(open(name, 'rb').read()).hexdigest()
+              apks[m.group(1)] = {'name': name, 'sha256': digest}
+          if not apks:
+              raise SystemExit('No release APKs found for the update manifest.')
+          with open('android-update.json', 'w') as f:
+              json.dump({'build': int(os.environ['RUN_NUMBER']), 'apks': apks}, f, indent=2)
+          print(json.dumps({'build': int(os.environ['RUN_NUMBER']), 'abis': sorted(apks)}))
+          PY
+          gh release upload android-latest android-update.json \
+            --repo "$GITHUB_REPOSITORY" --clobber
+
       - name: Keep only the three newest test builds
         if: ${{ env.BUILD_TEST_APK == 'true' && env.HAS_RELEASE_SIGNING != 'true' }}
         env:
@@ -415,7 +444,7 @@ jobs:
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
           set -o pipefail
-          flutter build apk --release --split-per-abi --dart-define=BUILD_NUMBER=${{ github.run_number }} 2>&1 | tee flutter-build.log
+          flutter build apk --release --split-per-abi --build-number=${{ github.run_number }} --dart-define=BUILD_NUMBER=${{ github.run_number }} 2>&1 | tee flutter-build.log
 
       - name: Verify APK certificates before distribution
         if: ${{ env.HAS_RELEASE_SIGNING == 'true' }}
