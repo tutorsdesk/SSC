@@ -133,6 +133,16 @@ class AppIcon extends StatelessWidget {
       PhosphorIcons.wifiHigh => asset('Wifi'),
       PhosphorIcons.wrench => asset('Wrench'),
       PhosphorIcons.x || PhosphorIcons.xDuotone => asset('Close-1'),
+      // Drawn with the Phosphor font: no supplied SVG exists for these.
+      PhosphorIcons.arrowDown || PhosphorIcons.arrowLineDown || PhosphorIcons.arrowLineUp || PhosphorIcons.arrowUUpLeft => null,
+      PhosphorIcons.arrowUUpRight || PhosphorIcons.arrowUp || PhosphorIcons.arrowsOutSimple || PhosphorIcons.caretLeft => null,
+      PhosphorIcons.clockCounterClockwise || PhosphorIcons.columns || PhosphorIcons.divide || PhosphorIcons.downloadSimple => null,
+      PhosphorIcons.eraser || PhosphorIcons.floppyDisk || PhosphorIcons.image || PhosphorIcons.listNumbers => null,
+      PhosphorIcons.magnifyingGlassMinus || PhosphorIcons.magnifyingGlassPlus || PhosphorIcons.minus || PhosphorIcons.notepad => null,
+      PhosphorIcons.paragraph || PhosphorIcons.plus || PhosphorIcons.printer || PhosphorIcons.rows => null,
+      PhosphorIcons.shareNetwork || PhosphorIcons.textAa || PhosphorIcons.textAlignCenter || PhosphorIcons.textAlignJustify => null,
+      PhosphorIcons.textAlignLeft || PhosphorIcons.textAlignRight || PhosphorIcons.textB || PhosphorIcons.textHOne => null,
+      PhosphorIcons.textItalic || PhosphorIcons.textUnderline || PhosphorIcons.uploadSimple => null,
       _ => null,
     };
     if (path == null) return null;

@@ -651,7 +651,7 @@ class _PapersLibraryScreenState extends State<PapersLibraryScreen>
         actions: [
           IconButton(
             tooltip: 'Paper editor',
-            icon: const Icon(Icons.edit_note),
+            icon: const AppIcon(PhosphorIcons.notePencil),
             onPressed: () => Navigator.push<void>(
               context,
               MaterialPageRoute(builder: (_) => const PaperEditorListScreen()),
@@ -802,7 +802,7 @@ class _PapersLibraryScreenState extends State<PapersLibraryScreen>
       );
 
   Widget _iconBtn(
-    PhosphorDuotoneIconData icon,
+    PhosphorDuotoneObject icon,
     String label,
     VoidCallback onTap, {
     Color? color,

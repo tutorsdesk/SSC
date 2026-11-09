@@ -52,44 +52,67 @@ abstract final class PaperSpell {
     return out;
   }
 
-  /// Up to [limit] close spellings of [word], nearest first.
+  /// Up to [limit] close spellings of [word], nearest first. A swapped pair
+  /// of letters ("teh" for "the") counts as one edit, and words with the same
+  /// letters rank above other words at the same distance.
   static List<String> suggestions(String word, {int limit = 5}) {
     final words = _words;
     if (words == null) return const [];
     final target = word.toLowerCase();
     if (!_plain.hasMatch(target)) return const [];
-    final found = <(int, String)>[];
+    final letters = _sortedLetters(target);
+    final found = <(int, int, String)>[];
     for (final candidate in words) {
       if ((candidate.length - target.length).abs() > 2) continue;
       final d = _distance(target, candidate, 2);
-      if (d <= 2) found.add((d, candidate));
+      if (d > 2) continue;
+      final sameLetters = _sortedLetters(candidate) == letters ? 0 : 1;
+      found.add((d, sameLetters, candidate));
     }
     found.sort((a, b) {
-      final byDistance = a.$1.compareTo(b.$1);
-      return byDistance != 0 ? byDistance : a.$2.compareTo(b.$2);
+      if (a.$1 != b.$1) return a.$1.compareTo(b.$1);
+      if (a.$2 != b.$2) return a.$2.compareTo(b.$2);
+      return a.$3.compareTo(b.$3);
     });
-    return [for (final f in found.take(limit)) f.$2];
+    return [for (final f in found.take(limit)) f.$3];
   }
 
-  /// Levenshtein distance, stopping early once it exceeds [max].
+  static String _sortedLetters(String w) {
+    final chars = w.split('')..sort();
+    return chars.join();
+  }
+
+  /// Optimal string alignment distance (Levenshtein plus adjacent swaps),
+  /// stopping early once every cell in a row exceeds [max].
   static int _distance(String a, String b, int max) {
     if (a == b) return 0;
-    var prev = List<int>.generate(b.length + 1, (i) => i);
-    for (var i = 1; i <= a.length; i++) {
-      final cur = List<int>.filled(b.length + 1, 0);
+    final n = a.length;
+    final m = b.length;
+    var prev2 = List<int>.filled(m + 1, 0);
+    var prev = List<int>.generate(m + 1, (j) => j);
+    for (var i = 1; i <= n; i++) {
+      final cur = List<int>.filled(m + 1, 0);
       cur[0] = i;
       var rowMin = cur[0];
-      for (var j = 1; j <= b.length; j++) {
-        final cost = a.codeUnitAt(i - 1) == b.codeUnitAt(j - 1) ? 0 : 1;
-        var v = prev[j - 1] + cost;
+      for (var j = 1; j <= m; j++) {
+        final same = a.codeUnitAt(i - 1) == b.codeUnitAt(j - 1);
+        var v = prev[j - 1] + (same ? 0 : 1);
         if (prev[j] + 1 < v) v = prev[j] + 1;
         if (cur[j - 1] + 1 < v) v = cur[j - 1] + 1;
+        if (i > 1 &&
+            j > 1 &&
+            a.codeUnitAt(i - 1) == b.codeUnitAt(j - 2) &&
+            a.codeUnitAt(i - 2) == b.codeUnitAt(j - 1) &&
+            prev2[j - 2] + 1 < v) {
+          v = prev2[j - 2] + 1;
+        }
         cur[j] = v;
         if (v < rowMin) rowMin = v;
       }
       if (rowMin > max) return max + 1;
+      prev2 = prev;
       prev = cur;
     }
-    return prev[b.length];
+    return prev[m];
   }
 }

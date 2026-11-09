@@ -12,6 +12,8 @@ import '../services/paper_document_store.dart';
 import '../services/paper_image_codec.dart';
 import '../services/paper_spell.dart';
 import '../theme/design_tokens.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
+import '../widgets/app_icon.dart';
 
 typedef _FormField = ({String key, String label, String initial});
 
@@ -721,17 +723,17 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
           IconButton(
             tooltip: 'Save',
             onPressed: _saveNow,
-            icon: const Icon(Icons.save_outlined),
+            icon: const AppIcon(PhosphorIcons.floppyDisk),
           ),
           IconButton(
             tooltip: 'Print',
             onPressed: _busy ? null : () => _export(print: true),
-            icon: const Icon(Icons.print_outlined),
+            icon: const AppIcon(PhosphorIcons.printer),
           ),
           IconButton(
             tooltip: 'Share PDF',
             onPressed: _busy ? null : () => _export(print: false),
-            icon: const Icon(Icons.ios_share),
+            icon: const AppIcon(PhosphorIcons.shareNetwork),
           ),
         ],
       ),
@@ -851,7 +853,7 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
   }
 
   Widget _tool(
-    IconData icon,
+    Object icon,
     String tip,
     VoidCallback? onTap, {
     bool on = false,
@@ -869,7 +871,7 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
             color: on ? AppColors.light : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(
+          child: AppIcon(
             icon,
             size: 20,
             color: onTap == null ? AppColors.disabled : AppColors.text,
@@ -879,10 +881,10 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
     );
   }
 
-  Widget _chip(IconData icon, String label, VoidCallback? onTap) {
+  Widget _chip(Object icon, String label, VoidCallback? onTap) {
     return TextButton.icon(
       onPressed: onTap,
-      icon: Icon(icon, size: 18),
+      icon: AppIcon(icon, size: 18),
       label: Text(label),
       style: TextButton.styleFrom(foregroundColor: AppColors.text),
     );
@@ -949,57 +951,57 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
     void flag(TextFlag f) => _fieldState?.applyFlag(f);
     void align(ParaAlign a) => _setAlign(a);
     return [
-      _tool(Icons.undo, 'Undo', _undo.isEmpty ? null : _undoStep),
-      _tool(Icons.redo, 'Redo', _redo.isEmpty ? null : _redoStep),
+      _tool(PhosphorIcons.arrowUUpLeft, 'Undo', _undo.isEmpty ? null : _undoStep),
+      _tool(PhosphorIcons.arrowUUpRight, 'Redo', _redo.isEmpty ? null : _redoStep),
       _sep(),
       _styleDropdown(),
       const SizedBox(width: 6),
       _sizeDropdown(),
       _sep(),
       _tool(
-        Icons.format_bold,
+        PhosphorIcons.textB,
         'Bold',
         hasField ? () => flag(TextFlag.bold) : null,
         on: _active.bold,
       ),
       _tool(
-        Icons.format_italic,
+        PhosphorIcons.textItalic,
         'Italic',
         hasField ? () => flag(TextFlag.italic) : null,
         on: _active.italic,
       ),
       _tool(
-        Icons.format_underlined,
+        PhosphorIcons.textUnderline,
         'Underline',
         hasField ? () => flag(TextFlag.underline) : null,
         on: _active.underline,
       ),
       _tool(
-        Icons.format_clear,
+        PhosphorIcons.eraser,
         'Clear formatting',
         hasField ? () => _fieldState?.clearFormat() : null,
       ),
       _sep(),
       _tool(
-        Icons.format_align_left,
+        PhosphorIcons.textAlignLeft,
         'Align left',
         hasPara ? () => align(ParaAlign.left) : null,
         on: para?.align == ParaAlign.left,
       ),
       _tool(
-        Icons.format_align_center,
+        PhosphorIcons.textAlignCenter,
         'Align centre',
         hasPara ? () => align(ParaAlign.center) : null,
         on: para?.align == ParaAlign.center,
       ),
       _tool(
-        Icons.format_align_right,
+        PhosphorIcons.textAlignRight,
         'Align right',
         hasPara ? () => align(ParaAlign.right) : null,
         on: para?.align == ParaAlign.right,
       ),
       _tool(
-        Icons.format_align_justify,
+        PhosphorIcons.textAlignJustify,
         'Justify',
         hasPara ? () => align(ParaAlign.justify) : null,
         on: para?.align == ParaAlign.justify,
@@ -1010,14 +1012,14 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
   List<Widget> _insertTools() {
     return [
       _chip(
-        Icons.quiz_outlined,
+        PhosphorIcons.question,
         'Question',
         () => _insertAfterFocus([
           DocParagraph(id: newParaId(), kind: ParaKind.question),
         ]),
       ),
       _chip(
-        Icons.radio_button_checked,
+        PhosphorIcons.checkCircle,
         'MCQ options (4)',
         () => _insertAfterFocus([
           for (var i = 0; i < 4; i++)
@@ -1025,21 +1027,21 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
         ]),
       ),
       _chip(
-        Icons.title,
+        PhosphorIcons.textHOne,
         'Heading',
         () => _insertAfterFocus([
           DocParagraph(id: newParaId(), kind: ParaKind.heading),
         ]),
       ),
       _chip(
-        Icons.short_text,
+        PhosphorIcons.paragraph,
         'Instruction',
         () => _insertAfterFocus([
           DocParagraph(id: newParaId(), kind: ParaKind.instruction),
         ]),
       ),
       _chip(
-        Icons.notes,
+        PhosphorIcons.notepad,
         'Normal text',
         () => _insertAfterFocus([
           DocParagraph(id: newParaId(), kind: ParaKind.normal),
@@ -1047,7 +1049,7 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
       ),
       _sep(),
       _chip(
-        Icons.horizontal_split,
+        PhosphorIcons.divide,
         'Page break',
         () => _insertAfterFocus(
           [
@@ -1058,87 +1060,87 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
         ),
       ),
       _sep(),
-      _chip(Icons.table_chart_outlined, 'Table (3 × 3)', _insertTable),
-      _chip(Icons.image_outlined, 'Picture', _insertPicture),
+      _chip(PhosphorIcons.table, 'Table (3 × 3)', _insertTable),
+      _chip(PhosphorIcons.image, 'Picture', _insertPicture),
     ];
   }
 
   List<Widget> _fileTools() => [
-        _chip(Icons.save_outlined, 'Save', _saveNow),
+        _chip(PhosphorIcons.floppyDisk, 'Save', _saveNow),
         _sep(),
-        _chip(Icons.file_download_outlined, 'Save a copy to a file', _exportCopy),
-        _chip(Icons.file_upload_outlined, 'Open a copy from a file', _importCopy),
-        _chip(Icons.history, 'Backups of this paper', _showBackups),
+        _chip(PhosphorIcons.downloadSimple, 'Save a copy to a file', _exportCopy),
+        _chip(PhosphorIcons.uploadSimple, 'Open a copy from a file', _importCopy),
+        _chip(PhosphorIcons.clockCounterClockwise, 'Backups of this paper', _showBackups),
         _sep(),
         _chip(
-          Icons.print_outlined,
+          PhosphorIcons.printer,
           'Print',
           _busy ? null : () => _export(print: true),
         ),
         _chip(
-          Icons.ios_share,
+          PhosphorIcons.shareNetwork,
           'Share PDF',
           _busy ? null : () => _export(print: false),
         ),
       ];
 
   List<Widget> _reviewTools() => [
-        _chip(Icons.spellcheck, 'Check spelling', _spellCheck),
+        _chip(PhosphorIcons.textAa, 'Check spelling', _spellCheck),
       ];
 
   List<Widget> _viewTools() => [
         _tool(
-          Icons.zoom_out,
+          PhosphorIcons.magnifyingGlassMinus,
           'Zoom out',
           _zoom > 0.61 ? () => _zoomBy(-0.1) : null,
         ),
-        _chip(Icons.fit_screen, '${(_zoom * 100).round()}%',
+        _chip(PhosphorIcons.arrowsOutSimple, '${(_zoom * 100).round()}%',
             () => setState(() => _zoom = 1.0)),
         _tool(
-          Icons.zoom_in,
+          PhosphorIcons.magnifyingGlassPlus,
           'Zoom in',
           _zoom < 1.59 ? () => _zoomBy(0.1) : null,
         ),
       ];
 
   List<Widget> _tableTools() => [
-        _chip(Icons.vertical_align_top, 'Insert row above',
+        _chip(PhosphorIcons.arrowLineUp, 'Insert row above',
             () => _tableOp((t, r) => t.insertRow(r.row))),
-        _chip(Icons.vertical_align_bottom, 'Insert row below',
+        _chip(PhosphorIcons.arrowLineDown, 'Insert row below',
             () => _tableOp((t, r) => t.insertRow(r.row + 1))),
         _sep(),
-        _chip(Icons.keyboard_arrow_left, 'Insert column left',
+        _chip(PhosphorIcons.caretLeft, 'Insert column left',
             () => _tableOp((t, r) => t.insertColumn(r.col))),
-        _chip(Icons.keyboard_arrow_right, 'Insert column right',
+        _chip(PhosphorIcons.caretRight, 'Insert column right',
             () => _tableOp((t, r) => t.insertColumn(r.col + 1))),
         _sep(),
-        _chip(Icons.remove, 'Delete row',
+        _chip(PhosphorIcons.minus, 'Delete row',
             () => _tableOp((t, r) => t.deleteRow(r.row))),
-        _chip(Icons.view_column_outlined, 'Delete column',
+        _chip(PhosphorIcons.columns, 'Delete column',
             () => _tableOp((t, r) => t.deleteColumn(r.col))),
         _sep(),
-        _chip(Icons.delete_outline, 'Delete table', _deleteTable),
+        _chip(PhosphorIcons.trash, 'Delete table', _deleteTable),
       ];
 
   List<Widget> _pictureTools() => [
-        _chip(Icons.crop_original, 'Picture at 50% width',
+        _chip(PhosphorIcons.image, 'Picture at 50% width',
             () => _setPictureWidth(0.5)),
-        _chip(Icons.crop_original, 'Picture at 75% width',
+        _chip(PhosphorIcons.image, 'Picture at 75% width',
             () => _setPictureWidth(0.75)),
-        _chip(Icons.crop_original, 'Picture at full width',
+        _chip(PhosphorIcons.image, 'Picture at full width',
             () => _setPictureWidth(1.0)),
         _sep(),
-        _chip(Icons.delete_outline, 'Delete picture', _deleteFocused),
+        _chip(PhosphorIcons.trash, 'Delete picture', _deleteFocused),
       ];
 
   List<Widget> _layoutTools() {
     final para = _focusPara;
     final hasPara = para != null;
     return [
-      _chip(Icons.info_outline, 'Paper details', _editDetails),
-      _chip(Icons.view_headline, 'Header and footer', _editPageSetup),
+      _chip(PhosphorIcons.info, 'Paper details', _editDetails),
+      _chip(PhosphorIcons.rows, 'Header and footer', _editPageSetup),
       _chip(
-        Icons.numbers,
+        PhosphorIcons.listNumbers,
         _doc.showPageNumbers ? 'Page numbers: on' : 'Page numbers: off',
         () => _commit(
           _doc.copyWith(showPageNumbers: !_doc.showPageNumbers),
@@ -1146,17 +1148,17 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
       ),
       _sep(),
       _tool(
-        Icons.arrow_upward,
+        PhosphorIcons.arrowUp,
         'Move paragraph up',
         hasPara ? () => _moveFocused(-1) : null,
       ),
       _tool(
-        Icons.arrow_downward,
+        PhosphorIcons.arrowDown,
         'Move paragraph down',
         hasPara ? () => _moveFocused(1) : null,
       ),
       _tool(
-        Icons.delete_outline,
+        PhosphorIcons.trash,
         'Delete paragraph',
         hasPara ? _deleteFocused : null,
       ),
@@ -1876,7 +1878,7 @@ class _PageBreakRow extends StatelessWidget {
                   width: 28,
                   height: 28,
                 ),
-                icon: const Icon(Icons.delete_outline, size: 18),
+                icon: const AppIcon(PhosphorIcons.trash, size: 18),
               ),
           ],
         ),
@@ -1975,7 +1977,7 @@ class _PaperEditorListScreenState extends State<PaperEditorListScreen> {
         final d = docs[i];
         return Card(
           child: ListTile(
-            leading: const Icon(Icons.description_outlined),
+            leading: const AppIcon(PhosphorIcons.fileText),
             title: Text(d.title, maxLines: 1, overflow: TextOverflow.ellipsis),
             subtitle: Text(
               '${d.questionCount} questions  ·  ${d.wordCount} words  ·  '
@@ -1984,7 +1986,7 @@ class _PaperEditorListScreenState extends State<PaperEditorListScreen> {
             onTap: () => _open(d),
             trailing: IconButton(
               tooltip: 'Delete',
-              icon: const Icon(Icons.delete_outline),
+              icon: const AppIcon(PhosphorIcons.trash),
               onPressed: () => _delete(d),
             ),
           ),
@@ -1999,7 +2001,7 @@ class _PaperEditorListScreenState extends State<PaperEditorListScreen> {
       appBar: AppBar(title: const Text('Paper Editor')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _open(null),
-        icon: const Icon(Icons.add),
+        icon: const AppIcon(PhosphorIcons.plus),
         label: const Text('New document'),
       ),
       body: _body(),
