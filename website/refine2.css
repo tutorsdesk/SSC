@@ -1,0 +1,35 @@
+/* ── Tutor's Desk: plainer, product-led presentation ──────────────────
+   Removes decorative effects that read as template-made: outline display
+   accents, ambient glow, noise texture, and unicode glyphs used as icons.
+   Layout, carousel geometry and checkout behaviour are unchanged. */
+
+.noise,.halo{display:none!important}
+
+/* Second-line headline accents: plain muted weight instead of outline type */
+.hero h1 em,
+.statement h2 span,
+.workflow h2 span,
+.download-copy h2 span,
+.faq-title h2 span{font-family:inherit!important;font-style:normal;font-weight:600;color:#8a8a86;letter-spacing:-.04em}
+
+/* Decorative glyph icons: the text carries the meaning */
+.mini-icon,.line-icon,.step-icon,.floating-card .check,.floating-card .scan,.feature-top .line-icon{display:none!important}
+.dark-feature .feature-top:after{display:none}
+
+/* Section labels read as plain navigation, not numbered chapters */
+.section-index{letter-spacing:.12em;text-transform:uppercase}
+
+/* Flat, calm surfaces instead of shadowed glass */
+.floating-card{backdrop-filter:none;background:#fff;box-shadow:0 8px 24px rgba(0,0,0,.08)}
+.site-header{backdrop-filter:blur(12px)}
+
+/* Headlines: tighter, more confident scale on desktop */
+@media (min-width:981px){
+  .hero h1{font-size:clamp(54px,5vw,76px);letter-spacing:-.06em}
+}
+
+/* Desktop headline: fewer line breaks, and the OMR badge clears the toolbar button */
+@media (min-width:981px){
+  .hero h1{font-size:clamp(46px,4.2vw,64px);letter-spacing:-.05em}
+  .float-two{top:-26px;right:-18px}
+}
