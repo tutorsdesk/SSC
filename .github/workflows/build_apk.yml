@@ -73,13 +73,22 @@ jobs:
         run: |
           createdb -h 127.0.0.1 -U postgres promotion_test
           psql -h 127.0.0.1 -U postgres -d promotion_test -v ON_ERROR_STOP=1 -f supabase/tests/promotion_studio_test.sql
-      - name: Admin validation and browser tests
+      # Split into separate steps so the failing command is named in the run.
+      - name: Install admin dependencies
+        working-directory: web-admin
+        run: npm ci --ignore-scripts
+      - name: Admin validation unit tests
         working-directory: web-admin
         run: |
           set -o pipefail
-          npm ci --ignore-scripts
           npm test 2>&1 | tee ../admin-unit.log
-          npx playwright install --with-deps chromium
+      - name: Install Playwright Chromium
+        working-directory: web-admin
+        run: npx playwright install --with-deps chromium
+      - name: Admin browser tests
+        working-directory: web-admin
+        run: |
+          set -o pipefail
           npx playwright test 2>&1 | tee ../admin-browser.log
 
       # Browser test output lives on blob storage that is not reachable from
