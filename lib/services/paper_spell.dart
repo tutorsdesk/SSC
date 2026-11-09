@@ -14,11 +14,11 @@ abstract final class PaperSpell {
   /// Latin words, plus runs of Bengali letters and vowel signs.
   static final RegExp _token = RegExp(
     r"[A-Za-z]+(?:['’][A-Za-z]+)*|"
-    r"[\u0985-\u09B9\u09BC-\u09CE\u09D7\u09DC\u09DD\u09DF-\u09E3]+",
+    r"[\u0980-\u0983\u0985-\u09B9\u09BC-\u09CE\u09D7\u09DC\u09DD\u09DF-\u09E3]+",
   );
   static final RegExp _plain = RegExp(r'^[a-z]+$');
   static final RegExp _bengaliWord = RegExp(
-    r'^[\u0985-\u09B9\u09BC-\u09CE\u09D7\u09DC\u09DD\u09DF-\u09E3]+$',
+    r'^[\u0980-\u0983\u0985-\u09B9\u09BC-\u09CE\u09D7\u09DC\u09DD\u09DF-\u09E3]+$',
   );
 
   static Set<String>? _words;
@@ -63,7 +63,7 @@ abstract final class PaperSpell {
     if (word.length < 2) return true;
     if (isBangla(word)) {
       final bn = _banglaWords;
-      return bn == null || bn.contains(word);
+      return bn == null || bn.contains(composeBangla(word));
     }
     final words = _words;
     if (words == null) return true;
@@ -93,7 +93,7 @@ abstract final class PaperSpell {
     if (isBangla(word)) {
       final bn = _banglaWords;
       if (bn == null) return const [];
-      return _nearest(word, bn, limit);
+      return _nearest(composeBangla(word), bn, limit);
     }
     final words = _words;
     if (words == null) return const [];
@@ -101,6 +101,15 @@ abstract final class PaperSpell {
     if (!_plain.hasMatch(target)) return const [];
     return _nearest(target, words, limit);
   }
+
+  /// Bengali keyboards often type decomposed letters (ড + nukta, ে + া).
+  /// The word list uses composed letters, so input is composed before lookup.
+  static String composeBangla(String w) => w
+      .replaceAll('\u09A1\u09BC', '\u09DC')
+      .replaceAll('\u09A2\u09BC', '\u09DD')
+      .replaceAll('\u09AF\u09BC', '\u09DF')
+      .replaceAll('\u09C7\u09BE', '\u09CB')
+      .replaceAll('\u09C7\u09D7', '\u09CC');
 
   static List<String> _nearest(
     String target,
