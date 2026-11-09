@@ -20,6 +20,7 @@ import '../theme/design_tokens.dart';
 import '../widgets/glass_card.dart';
 import 'omr_scanner_screen.dart';
 import 'saved_paper_screen.dart';
+import 'paper_editor_screen.dart';
 
 /// Question Papers — two lists:
 ///  • Saved: papers saved from the in-app builder (with their answer keys) —
@@ -645,7 +646,19 @@ class _PapersLibraryScreenState extends State<PapersLibraryScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Question Papers')),
+      appBar: AppBar(
+        title: const Text('Question Papers'),
+        actions: [
+          IconButton(
+            tooltip: 'Paper editor',
+            icon: const Icon(Icons.edit_note),
+            onPressed: () => Navigator.push<void>(
+              context,
+              MaterialPageRoute(builder: (_) => const PaperEditorListScreen()),
+            ),
+          ),
+        ],
+      ),
       body: SafeArea(child: _savedTab()),
     );
   }
