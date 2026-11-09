@@ -214,7 +214,12 @@ void main() {
         'id': 'x',
         'title': 'T',
         'paragraphs': [
-          {'id': 'p', 'kind': 'image', 'text': '', 'image': {'data': ''}},
+          {
+            'id': 'p',
+            'kind': 'image',
+            'text': '',
+            'image': {'data': ''}
+          },
         ],
       });
       expect(back.paragraphs.single.image, isNotNull);
