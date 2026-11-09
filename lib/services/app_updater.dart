@@ -189,9 +189,8 @@ abstract final class AppUpdater {
 
   static Future<Object?> _getJson(String url) async {
     try {
-      final res = await http
-          .get(Uri.parse(url), headers: _headers)
-          .timeout(_timeout);
+      final res =
+          await http.get(Uri.parse(url), headers: _headers).timeout(_timeout);
       if (res.statusCode != 200) return null;
       return jsonDecode(utf8.decode(res.bodyBytes));
     } catch (_) {

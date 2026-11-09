@@ -68,7 +68,10 @@ void main() {
       manifest: {
         'build': 644,
         'apks': {
-          'arm64-v8a': {'name': 'app-arm64-v8a-release.apk', 'sha256': _digest44},
+          'arm64-v8a': {
+            'name': 'app-arm64-v8a-release.apk',
+            'sha256': _digest44
+          },
         },
       },
       abi: 'arm64-v8a',
