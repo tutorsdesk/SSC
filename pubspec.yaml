@@ -71,6 +71,8 @@ flutter:
     - assets/fonts/HindSiliguri-Regular.ttf
     - assets/fonts/DejaVuSans.ttf
     - assets/fonts/DejaVuSans-Bold.ttf
+    - assets/dictionary/en_words.txt
+    - assets/dictionary/LICENSE-SCOWL.txt
 
 flutter_launcher_icons:
   android: true

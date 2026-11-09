@@ -1,15 +1,17 @@
 /// Word-style question paper document used by the Paper Editor.
 ///
-/// A document is an ordered list of paragraphs. Each paragraph has a kind
-/// (title, heading, question, option …), an alignment and per-character
-/// formatting. Documents are immutable: every edit returns a new
-/// [PaperDocument], which keeps undo/redo cheap and safe.
+/// A document is an ordered list of blocks (paragraphs, questions, tables,
+/// pictures and page breaks). Text blocks hold per-character formatting.
+/// Documents are immutable: every edit returns a new [PaperDocument], which
+/// keeps undo/redo cheap and safe.
 ///
 /// This file is plain Dart (no Flutter imports) so the rules can be tested
 /// directly.
 library;
 
+import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 enum ParaKind {
   title,
@@ -19,6 +21,8 @@ enum ParaKind {
   question,
   option,
   pageBreak,
+  table,
+  image,
 }
 
 enum ParaAlign { left, center, right, justify }
@@ -62,7 +66,7 @@ String toBanglaNumber(int n) {
 
 int _idSeq = 0;
 
-/// A new unique paragraph id.
+/// A new unique block id.
 String newParaId() {
   _idSeq++;
   return 'p${DateTime.now().microsecondsSinceEpoch}_$_idSeq';
@@ -83,7 +87,7 @@ T _enumByName<T extends Enum>(List<T> values, Object? name, T fallback) {
 
 int _clampInt(int v, int lo, int hi) => v < lo ? lo : (v > hi ? hi : v);
 
-/// Look-and-feel defaults for each paragraph kind (sizes in points).
+/// Look-and-feel defaults for each block kind (sizes in points).
 extension ParaKindLook on ParaKind {
   double get basePt => switch (this) {
         ParaKind.title => 20,
@@ -100,6 +104,8 @@ extension ParaKindLook on ParaKind {
   double get beforePt => switch (this) {
         ParaKind.heading => 16,
         ParaKind.question => 10,
+        ParaKind.table => 8,
+        ParaKind.image => 8,
         _ => 0,
       };
 
@@ -108,8 +114,13 @@ extension ParaKindLook on ParaKind {
         ParaKind.heading => 6,
         ParaKind.option => 2,
         ParaKind.question => 4,
+        ParaKind.table => 8,
+        ParaKind.image => 8,
         _ => 6,
       };
+
+  /// Kinds that show a number or letter in the left gutter.
+  bool get hasGutter => this == ParaKind.question || this == ParaKind.option;
 
   String get label => switch (this) {
         ParaKind.title => 'Title',
@@ -119,6 +130,8 @@ extension ParaKindLook on ParaKind {
         ParaKind.question => 'Question',
         ParaKind.option => 'Option',
         ParaKind.pageBreak => 'Page break',
+        ParaKind.table => 'Table',
+        ParaKind.image => 'Picture',
       };
 }
 
@@ -128,7 +141,7 @@ class CharStyle {
   final bool italic;
   final bool underline;
 
-  /// Font size in points, or null for the paragraph default.
+  /// Font size in points, or null for the block default.
   final double? size;
 
   const CharStyle({
@@ -196,13 +209,131 @@ class CharStyle {
   }
 }
 
-/// One paragraph. `styles` has exactly one entry per character of `text`.
+/// A picture placed in the document. The bytes are already resized and
+/// re-encoded, so they are small enough to keep inside the document file.
+class DocImage {
+  final Uint8List bytes;
+
+  /// Height divided by width of the picture.
+  final double aspect;
+
+  /// Share of the text width the picture uses (0.2 – 1.0).
+  final double widthFraction;
+
+  const DocImage({
+    required this.bytes,
+    required this.aspect,
+    this.widthFraction = 0.6,
+  });
+
+  DocImage copyWith({double? widthFraction}) => DocImage(
+        bytes: bytes,
+        aspect: aspect,
+        widthFraction: widthFraction ?? this.widthFraction,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'data': base64Encode(bytes),
+        'aspect': aspect,
+        'w': widthFraction,
+      };
+
+  factory DocImage.fromJson(Map<String, dynamic> j) => DocImage(
+        bytes: base64Decode(j['data'] as String? ?? ''),
+        aspect: (j['aspect'] as num?)?.toDouble() ?? 0.75,
+        widthFraction: (j['w'] as num?)?.toDouble() ?? 0.6,
+      );
+}
+
+/// A grid of cells. Each cell is a text paragraph with its own id, so it can
+/// be edited like any other paragraph.
+class DocTable {
+  final List<List<DocParagraph>> rows;
+
+  DocTable(List<List<DocParagraph>> rows)
+      : rows = List.unmodifiable([
+          for (final r in rows) List<DocParagraph>.unmodifiable(r),
+        ]);
+
+  /// A blank table with [rowCount] rows and [columnCount] columns.
+  factory DocTable.blank(int rowCount, int columnCount) => DocTable([
+        for (var r = 0; r < rowCount; r++)
+          [for (var c = 0; c < columnCount; c++) newCell()],
+      ]);
+
+  static DocParagraph newCell() => DocParagraph(id: newParaId());
+
+  int get rowCount => rows.length;
+
+  int get columnCount => rows.isEmpty ? 0 : rows.first.length;
+
+  DocTable insertRow(int at) {
+    final cols = columnCount < 1 ? 1 : columnCount;
+    final next = [...rows]
+      ..insert(_clampInt(at, 0, rows.length), [
+        for (var c = 0; c < cols; c++) newCell(),
+      ]);
+    return DocTable(next);
+  }
+
+  DocTable deleteRow(int at) {
+    if (rows.length <= 1) return this;
+    return DocTable([...rows]..removeAt(at));
+  }
+
+  DocTable insertColumn(int at) {
+    final cols = columnCount;
+    return DocTable([
+      for (final row in rows)
+        [...row]..insert(_clampInt(at, 0, cols), newCell()),
+    ]);
+  }
+
+  DocTable deleteColumn(int at) {
+    if (columnCount <= 1) return this;
+    return DocTable([
+      for (final row in rows) [...row]..removeAt(at),
+    ]);
+  }
+
+  DocTable replaceCell(int row, int col, DocParagraph cell) => DocTable([
+        for (var r = 0; r < rows.length; r++)
+          [
+            for (var c = 0; c < rows[r].length; c++)
+              (r == row && c == col) ? cell : rows[r][c],
+          ],
+      ]);
+
+  Map<String, dynamic> toJson() => {
+        'rows': [
+          for (final r in rows) [for (final c in r) c.toJson()],
+        ],
+      };
+
+  factory DocTable.fromJson(Map<String, dynamic> j) {
+    final raw = (j['rows'] as List?) ?? const [];
+    final rows = [
+      for (final r in raw)
+        [
+          for (final c in (r as List))
+            DocParagraph.fromJson((c as Map).cast<String, dynamic>()),
+        ],
+    ];
+    if (rows.isEmpty) return DocTable.blank(1, 2);
+    return DocTable(rows);
+  }
+}
+
+/// One block of the document: a text paragraph, a page break, a table or a
+/// picture. `styles` has exactly one entry per character of `text`.
 class DocParagraph {
   final String id;
   final ParaKind kind;
   final ParaAlign align;
   final String text;
   final List<CharStyle> styles;
+  final DocTable? table;
+  final DocImage? image;
 
   DocParagraph({
     required this.id,
@@ -210,6 +341,8 @@ class DocParagraph {
     this.align = ParaAlign.left,
     this.text = '',
     List<CharStyle>? styles,
+    this.table,
+    this.image,
   }) : styles = List.unmodifiable(
           styles ?? List<CharStyle>.filled(text.length, CharStyle.plain),
         ) {
@@ -221,6 +354,8 @@ class DocParagraph {
     ParaAlign? align,
     String? text,
     List<CharStyle>? styles,
+    DocTable? table,
+    DocImage? image,
   }) {
     return DocParagraph(
       id: id,
@@ -228,6 +363,8 @@ class DocParagraph {
       align: align ?? this.align,
       text: text ?? this.text,
       styles: styles ?? (text == null ? this.styles : null),
+      table: table ?? this.table,
+      image: image ?? this.image,
     );
   }
 
@@ -252,6 +389,8 @@ class DocParagraph {
         'align': align.name,
         'text': text,
         'styles': [for (final s in styles) s.toJson()],
+        if (table != null) 'table': table!.toJson(),
+        if (image != null) 'image': image!.toJson(),
       };
 
   factory DocParagraph.fromJson(Map<String, dynamic> j) {
@@ -261,12 +400,20 @@ class DocParagraph {
       for (var i = 0; i < text.length; i++)
         CharStyle.fromJson(i < raw.length ? raw[i] : null),
     ];
+    final tableJson = j['table'];
+    final imageJson = j['image'];
     return DocParagraph(
       id: j['id'] as String? ?? newParaId(),
       kind: _enumByName(ParaKind.values, j['kind'], ParaKind.normal),
       align: _enumByName(ParaAlign.values, j['align'], ParaAlign.left),
       text: text,
       styles: styles,
+      table: tableJson is Map
+          ? DocTable.fromJson(tableJson.cast<String, dynamic>())
+          : null,
+      image: imageJson is Map
+          ? DocImage.fromJson(imageJson.cast<String, dynamic>())
+          : null,
     );
   }
 }
@@ -293,6 +440,12 @@ class PaperHeader {
       subject.trim().isEmpty &&
       time.trim().isEmpty &&
       marks.trim().isEmpty;
+
+  /// Time and marks on one line, e.g. "Time: 2 hours     Marks: 100".
+  String get details => [
+        if (time.trim().isNotEmpty) 'Time: ${time.trim()}',
+        if (marks.trim().isNotEmpty) 'Marks: ${marks.trim()}',
+      ].join('     ');
 
   PaperHeader copyWith({
     String? school,
@@ -329,7 +482,15 @@ class PaperHeader {
   }
 }
 
-/// Paragraph list after replacing the paragraph at [index] with [next].
+/// Location of a table cell.
+class CellRef {
+  final String tableId;
+  final int row;
+  final int col;
+  const CellRef(this.tableId, this.row, this.col);
+}
+
+/// Block list after replacing the block at [index] with [next].
 List<DocParagraph> replaceParagraph(
   List<DocParagraph> list,
   int index,
@@ -337,16 +498,69 @@ List<DocParagraph> replaceParagraph(
 ) =>
     [...list.sublist(0, index), ...next, ...list.sublist(index + 1)];
 
+/// Finds a block or table cell by id (searching table cells too).
+DocParagraph? findParagraph(List<DocParagraph> list, String id) {
+  for (final p in list) {
+    if (p.id == id) return p;
+    final t = p.table;
+    if (t != null) {
+      for (final row in t.rows) {
+        final hit = findParagraph(row, id);
+        if (hit != null) return hit;
+      }
+    }
+  }
+  return null;
+}
+
+/// Where a table cell sits, or null when [cellId] is not a table cell.
+CellRef? locateCell(List<DocParagraph> list, String cellId) {
+  for (final p in list) {
+    final t = p.table;
+    if (t == null) continue;
+    for (var r = 0; r < t.rows.length; r++) {
+      for (var c = 0; c < t.rows[r].length; c++) {
+        if (t.rows[r][c].id == cellId) return CellRef(p.id, r, c);
+      }
+    }
+  }
+  return null;
+}
+
+/// Replaces the block or cell [id] with [next] (same id), anywhere in the
+/// tree. Blocks that are not found are left unchanged.
+List<DocParagraph> replaceById(
+  List<DocParagraph> list,
+  String id,
+  DocParagraph next,
+) {
+  return [
+    for (final p in list)
+      if (p.id == id)
+        next
+      else if (p.table != null && findParagraph([p], id) != null)
+        p.copyWith(
+          table: DocTable([
+            for (final row in p.table!.rows) replaceById(row, id, next),
+          ]),
+        )
+      else
+        p,
+  ];
+}
+
 /// Paragraphs that replace [old] after the user edits its text.
 ///
 /// Characters typed in the middle inherit the style of the character before
-/// them (or [typing], when the user has picked a style for new text). A
-/// newline (Enter, or a pasted line break) splits the paragraph: the first
-/// piece keeps [old]'s id and the rest get fresh ids.
+/// them (or [typing], when the user has picked a style for new text). When
+/// [split] is true, a newline (Enter, or a pasted line break) splits the
+/// paragraph: the first piece keeps [old]'s id and the rest get fresh ids.
+/// Table cells pass `split: false` and keep the newline inside the cell.
 List<DocParagraph> editParagraphText(
   DocParagraph old,
   String next, {
   CharStyle? typing,
+  bool split = true,
 }) {
   final before = old.text;
   var prefix = 0;
@@ -375,7 +589,7 @@ List<DocParagraph> editParagraphText(
     ...old.styles.sublist(before.length - suffix),
   ];
 
-  final pieces = next.split('\n');
+  final pieces = split ? next.split('\n') : [next];
   if (pieces.length == 1) {
     return [old.copyWith(text: next, styles: styles)];
   }
@@ -403,6 +617,54 @@ ParaKind _continuationKind(ParaKind kind) => switch (kind) {
       ParaKind.option => ParaKind.option,
       _ => ParaKind.normal,
     };
+
+/// Replaces whole-word occurrences of [word] (case-insensitive) with
+/// [replacement] in every text block and table cell.
+List<DocParagraph> replaceWordEverywhere(
+  List<DocParagraph> list,
+  String word,
+  String replacement,
+) {
+  final pattern = RegExp(
+    '(?<![A-Za-z])${RegExp.escape(word)}(?![A-Za-z])',
+    caseSensitive: false,
+  );
+  return [
+    for (final p in list)
+      if (p.table != null)
+        p.copyWith(
+          table: DocTable([
+            for (final row in p.table!.rows)
+              replaceWordEverywhere(row, word, replacement),
+          ]),
+        )
+      else if (p.kind != ParaKind.image && pattern.hasMatch(p.text))
+        _replaceInText(p, pattern, replacement)
+      else
+        p,
+  ];
+}
+
+DocParagraph _replaceInText(
+  DocParagraph p,
+  RegExp pattern,
+  String replacement,
+) {
+  final text = StringBuffer();
+  final styles = <CharStyle>[];
+  var last = 0;
+  for (final m in pattern.allMatches(p.text)) {
+    text.write(p.text.substring(last, m.start));
+    styles.addAll(p.styles.sublist(last, m.start));
+    text.write(replacement);
+    final style = p.styles[m.start];
+    styles.addAll(List<CharStyle>.filled(replacement.length, style));
+    last = m.end;
+  }
+  text.write(p.text.substring(last));
+  styles.addAll(p.styles.sublist(last));
+  return p.copyWith(text: text.toString(), styles: styles);
+}
 
 class PaperDocument {
   final String id;
@@ -478,7 +740,7 @@ class PaperDocument {
   int indexOf(String paragraphId) =>
       paragraphs.indexWhere((p) => p.id == paragraphId);
 
-  /// Question number (1-based) for question paragraphs, null otherwise.
+  /// Question number (1-based) for question blocks, null otherwise.
   List<int?> get questionNumbers {
     final out = <int?>[];
     var n = 0;
@@ -493,8 +755,8 @@ class PaperDocument {
     return out;
   }
 
-  /// Option label (ক, খ, …) for option paragraphs, null otherwise.
-  /// Labels restart after any paragraph that is not an option.
+  /// Option label (ক, খ, …) for option blocks, null otherwise.
+  /// Labels restart after any block that is not an option.
   List<String?> get optionLabels {
     final out = <String?>[];
     var k = 0;
@@ -510,9 +772,27 @@ class PaperDocument {
     return out;
   }
 
+  /// Every text block, including table cells.
+  Iterable<DocParagraph> get allTextBlocks sync* {
+    Iterable<DocParagraph> walk(List<DocParagraph> list) sync* {
+      for (final p in list) {
+        final t = p.table;
+        if (t != null) {
+          for (final row in t.rows) {
+            yield* walk(row);
+          }
+        } else if (p.kind != ParaKind.pageBreak && p.kind != ParaKind.image) {
+          yield p;
+        }
+      }
+    }
+
+    yield* walk(paragraphs);
+  }
+
   int get wordCount {
     var words = 0;
-    for (final p in paragraphs) {
+    for (final p in allTextBlocks) {
       final t = p.text.trim();
       if (t.isEmpty) continue;
       words += t.split(RegExp(r'\s+')).length;
@@ -525,6 +805,10 @@ class PaperDocument {
 
   int get pageBreakCount =>
       paragraphs.where((p) => p.kind == ParaKind.pageBreak).length;
+
+  int get tableCount => paragraphs.where((p) => p.table != null).length;
+
+  int get pictureCount => paragraphs.where((p) => p.image != null).length;
 
   Map<String, dynamic> toJson() => {
         'version': 1,

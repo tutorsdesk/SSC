@@ -1,10 +1,16 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/paper_document.dart';
+import '../services/paper_document_layout.dart';
 import '../services/paper_document_render.dart';
 import '../services/paper_document_store.dart';
+import '../services/paper_image_codec.dart';
+import '../services/paper_spell.dart';
 import '../theme/design_tokens.dart';
 
 typedef _FormField = ({String key, String label, String initial});
@@ -64,7 +70,8 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
   DateTime _lastEdit = DateTime.fromMillisecondsSinceEpoch(0);
   String? _focusId;
   CharStyle _active = CharStyle.plain;
-  int _tab = 0;
+  String _tab = 'Home';
+  double _zoom = 1.0;
   bool _busy = false;
   bool _dirty = false;
   int _editSerial = 0;
@@ -76,6 +83,9 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
     super.initState();
     _doc = widget.document ?? PaperDocument.blank(id: newDocId());
     if (widget.document != null) _status = 'Saved';
+    PaperSpell.load().then((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -165,15 +175,31 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
     _scheduleSave();
   }
 
-  /// Text typed into a paragraph (may split it on newlines).
+  /// Text typed into a paragraph or table cell. Top-level paragraphs may
+  /// split on newlines; table cells keep them inside the cell.
   void _onParagraphText(String id, String text, CharStyle? typing) {
+    final current = findParagraph(_doc.paragraphs, id);
+    if (current == null) return;
+    final inCell = locateCell(_doc.paragraphs, id) != null;
+    final pieces = editParagraphText(
+      current,
+      text,
+      typing: typing,
+      split: !inCell,
+    );
+    if (inCell) {
+      _commit(
+        _doc.copyWith(
+          paragraphs: replaceById(_doc.paragraphs, id, pieces.first),
+        ),
+        coalesce: true,
+      );
+      return;
+    }
     final i = _doc.indexOf(id);
     if (i < 0) return;
-    final pieces = editParagraphText(_doc.paragraphs[i], text, typing: typing);
     _commit(
-      _doc.copyWith(
-        paragraphs: replaceParagraph(_doc.paragraphs, i, pieces),
-      ),
+      _doc.copyWith(paragraphs: replaceParagraph(_doc.paragraphs, i, pieces)),
       coalesce: pieces.length == 1,
     );
     if (pieces.length > 1) {
@@ -182,12 +208,13 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
     }
   }
 
-  /// Formatting change of one paragraph's characters.
+  /// Formatting change of one paragraph's (or cell's) characters.
   void _onRestyle(DocParagraph next) {
-    final i = _doc.indexOf(next.id);
-    if (i < 0) return;
+    if (findParagraph(_doc.paragraphs, next.id) == null) return;
     _commit(
-      _doc.copyWith(paragraphs: replaceParagraph(_doc.paragraphs, i, [next])),
+      _doc.copyWith(
+        paragraphs: replaceById(_doc.paragraphs, next.id, next),
+      ),
     );
   }
 
@@ -274,6 +301,246 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
   }
 
   // ── Dialogs ────────────────────────────────────────────────────
+
+  // ── Tables, pictures, spelling, copies and backups ─────────────
+
+  CellRef? get _cellRef {
+    final id = _focusId;
+    return id == null ? null : locateCell(_doc.paragraphs, id);
+  }
+
+  void _snack(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  void _editBlock(String id, DocParagraph Function(DocParagraph p) edit) {
+    final p = findParagraph(_doc.paragraphs, id);
+    if (p == null) return;
+    _commit(
+      _doc.copyWith(paragraphs: replaceById(_doc.paragraphs, id, edit(p))),
+    );
+  }
+
+  void _editTable(String tableId, DocTable Function(DocTable t) edit) {
+    _editBlock(tableId, (p) {
+      final t = p.table;
+      return t == null ? p : p.copyWith(table: edit(t));
+    });
+  }
+
+  void _tableOp(DocTable Function(DocTable t, CellRef ref) edit) {
+    final ref = _cellRef;
+    if (ref == null) return;
+    _editTable(ref.tableId, (t) => edit(t, ref));
+  }
+
+  void _insertTable() {
+    _insertAfterFocus([
+      DocParagraph(id: newParaId(), table: DocTable.blank(3, 3)),
+    ]);
+  }
+
+  void _removeBlock(String id) {
+    final i = _doc.indexOf(id);
+    if (i < 0) return;
+    final list = [..._doc.paragraphs]..removeAt(i);
+    _focusId = null;
+    _commit(
+      _doc.copyWith(
+        paragraphs: list.isEmpty ? [DocParagraph(id: newParaId())] : list,
+      ),
+    );
+  }
+
+  void _deleteTable() {
+    final ref = _cellRef;
+    if (ref != null) _removeBlock(ref.tableId);
+  }
+
+  Future<void> _insertPicture() async {
+    final result = await FilePicker.platform.pickFiles(
+      dialogTitle: 'Insert picture',
+      type: FileType.image,
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final bytes = result.files.single.bytes;
+    if (bytes == null) {
+      _snack('Could not read that picture.');
+      return;
+    }
+    final prepared = await PaperImageCodec.prepare(bytes);
+    if (prepared == null) {
+      _snack('That file is not a picture this editor can read.');
+      return;
+    }
+    if (!mounted) return;
+    _insertAfterFocus([
+      DocParagraph(
+        id: newParaId(),
+        image: DocImage(bytes: prepared.bytes, aspect: prepared.aspect),
+      ),
+    ]);
+  }
+
+  void _setPictureWidth(double fraction) {
+    final id = _focusId;
+    if (id == null) return;
+    _editBlock(
+      id,
+      (p) => p.image == null
+          ? p
+          : p.copyWith(image: p.image!.copyWith(widthFraction: fraction)),
+    );
+  }
+
+  Future<void> _spellCheck() async {
+    await PaperSpell.load();
+    final found = <String>{};
+    for (final p in _doc.allTextBlocks) {
+      for (final r in PaperSpell.misspellings(p.text)) {
+        found.add(p.text.substring(r.$1, r.$2));
+      }
+    }
+    if (!mounted) return;
+    if (found.isEmpty) {
+      _snack('No spelling problems found.');
+      return;
+    }
+    final words = found.toList()..sort();
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Spelling (${words.length})'),
+        content: SizedBox(
+          width: 380,
+          child: ListView(
+            shrinkWrap: true,
+            children: [for (final w in words.take(60)) _spellRow(ctx, w)],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _spellRow(BuildContext ctx, String word) {
+    final options = PaperSpell.suggestions(word);
+    return ListTile(
+      dense: true,
+      title: Text(word),
+      subtitle: Text(
+        options.isEmpty
+            ? 'No suggestion'
+            : 'Suggestions: ${options.join(', ')}',
+      ),
+      trailing: options.isEmpty
+          ? null
+          : TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                var fix = options.first;
+                if (word[0] == word[0].toUpperCase()) {
+                  fix = fix[0].toUpperCase() + fix.substring(1);
+                }
+                _commit(
+                  _doc.copyWith(
+                    paragraphs:
+                        replaceWordEverywhere(_doc.paragraphs, word, fix),
+                  ),
+                );
+              },
+              child: const Text('Replace'),
+            ),
+    );
+  }
+
+  Future<void> _exportCopy() async {
+    await _persist();
+    try {
+      final path = await PaperDocumentStore.exportDocument(_doc);
+      if (path != null) _snack('Copy saved: $path');
+    } catch (e) {
+      _snack('Could not save the copy: $e');
+    }
+  }
+
+  Future<void> _importCopy() async {
+    await _persist();
+    try {
+      final doc = await PaperDocumentStore.importDocument();
+      if (doc == null) {
+        _snack('Nothing imported. Choose a .tdpaper or .json paper copy.');
+        return;
+      }
+      await PaperDocumentStore.save(doc);
+      _snack('Imported "${doc.title}". Open it from your saved papers.');
+    } catch (e) {
+      _snack('Could not import: $e');
+    }
+  }
+
+  Future<void> _showBackups() async {
+    await _persist();
+    final files = await PaperDocumentStore.backups(_doc.id);
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Backups of this paper'),
+        content: SizedBox(
+          width: 380,
+          child: files.isEmpty
+              ? const Text(
+                  'No backups yet. A backup is kept each time the paper is saved.',
+                )
+              : ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final f in files)
+                      ListTile(
+                        dense: true,
+                        title: Text(_stamp(f.lastModifiedSync())),
+                        trailing: TextButton(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _restore(f);
+                          },
+                          child: const Text('Restore'),
+                        ),
+                      ),
+                  ],
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _restore(File file) async {
+    final restored = await PaperDocumentStore.readBackup(file);
+    if (restored == null || restored.id != _doc.id) {
+      _snack('That backup cannot be restored.');
+      return;
+    }
+    _commit(restored);
+    _snack('Restored the backup from ${_stamp(file.lastModifiedSync())}.');
+  }
+
+  void _zoomBy(double delta) {
+    setState(() => _zoom = (_zoom + delta).clamp(0.6, 1.6).toDouble());
+  }
 
   Future<Map<String, String>?> _formDialog(
     String title,
@@ -468,61 +735,105 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
           ),
         ],
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _ribbon(),
-            Expanded(child: _sheet()),
-            _statusBar(),
-          ],
+      body: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.keyS, control: true):
+              _saveNow,
+          const SingleActivator(LogicalKeyboardKey.keyP, control: true): () {
+            if (!_busy) _export(print: true);
+          },
+          const SingleActivator(LogicalKeyboardKey.keyB, control: true): () =>
+              _fieldState?.applyFlag(TextFlag.bold),
+          const SingleActivator(LogicalKeyboardKey.keyI, control: true): () =>
+              _fieldState?.applyFlag(TextFlag.italic),
+          const SingleActivator(LogicalKeyboardKey.keyU, control: true): () =>
+              _fieldState?.applyFlag(TextFlag.underline),
+          const SingleActivator(LogicalKeyboardKey.keyY, control: true):
+              _redoStep,
+        },
+        child: SafeArea(
+          child: Column(
+            children: [
+              _ribbon(),
+              Expanded(child: _sheet()),
+              _statusBar(),
+            ],
+          ),
         ),
       ),
     );
   }
 
+  /// Tab names: the fixed tabs, plus contextual Table and Picture tabs when
+  /// the focus is in a table cell or on a picture.
+  List<String> _tabNames() => [
+        'File',
+        'Home',
+        'Insert',
+        'Layout',
+        'Review',
+        'View',
+        if (_cellRef != null) 'Table',
+        if (_focusPara?.image != null) 'Picture',
+      ];
+
+  List<Widget> _toolsFor(String tab) => switch (tab) {
+        'File' => _fileTools(),
+        'Insert' => _insertTools(),
+        'Layout' => _layoutTools(),
+        'Review' => _reviewTools(),
+        'View' => _viewTools(),
+        'Table' => _tableTools(),
+        'Picture' => _pictureTools(),
+        _ => _homeTools(),
+      };
+
   Widget _ribbon() {
-    const tabs = ['Home', 'Insert', 'Layout'];
-    final List<Widget> tools = switch (_tab) {
-      0 => _homeTools(),
-      1 => _insertTools(),
-      _ => _layoutTools(),
-    };
+    final tabs = _tabNames();
+    final current = tabs.contains(_tab) ? _tab : 'Home';
+    final List<Widget> tools = _toolsFor(current);
     return Material(
       color: AppColors.surface,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              for (var i = 0; i < tabs.length; i++)
-                InkWell(
-                  onTap: () => setState(() => _tab = i),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(
-                          width: 2,
-                          color: _tab == i
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final name in tabs)
+                  InkWell(
+                    onTap: () => setState(() => _tab = name),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(
+                            width: 2,
+                            color: current == name
+                                ? AppColors.primary
+                                : Colors.transparent,
+                          ),
+                        ),
+                      ),
+                      child: Text(
+                        name,
+                        style: TextStyle(
+                          fontWeight: current == name
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: current == name
                               ? AppColors.primary
-                              : Colors.transparent,
+                              : AppColors.muted,
                         ),
                       ),
                     ),
-                    child: Text(
-                      tabs[i],
-                      style: TextStyle(
-                        fontWeight:
-                            _tab == i ? FontWeight.w700 : FontWeight.w500,
-                        color: _tab == i ? AppColors.primary : AppColors.muted,
-                      ),
-                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
           const Divider(height: 1),
           SizedBox(
@@ -746,8 +1057,79 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
           focus: 1,
         ),
       ),
+      _sep(),
+      _chip(Icons.table_chart_outlined, 'Table (3 × 3)', _insertTable),
+      _chip(Icons.image_outlined, 'Picture', _insertPicture),
     ];
   }
+
+  List<Widget> _fileTools() => [
+        _chip(Icons.save_outlined, 'Save', _saveNow),
+        _sep(),
+        _chip(Icons.file_download_outlined, 'Save a copy to a file', _exportCopy),
+        _chip(Icons.file_upload_outlined, 'Open a copy from a file', _importCopy),
+        _chip(Icons.history, 'Backups of this paper', _showBackups),
+        _sep(),
+        _chip(
+          Icons.print_outlined,
+          'Print',
+          _busy ? null : () => _export(print: true),
+        ),
+        _chip(
+          Icons.ios_share,
+          'Share PDF',
+          _busy ? null : () => _export(print: false),
+        ),
+      ];
+
+  List<Widget> _reviewTools() => [
+        _chip(Icons.spellcheck, 'Check spelling', _spellCheck),
+      ];
+
+  List<Widget> _viewTools() => [
+        _tool(
+          Icons.zoom_out,
+          'Zoom out',
+          _zoom > 0.61 ? () => _zoomBy(-0.1) : null,
+        ),
+        _chip(Icons.fit_screen, '${(_zoom * 100).round()}%',
+            () => setState(() => _zoom = 1.0)),
+        _tool(
+          Icons.zoom_in,
+          'Zoom in',
+          _zoom < 1.59 ? () => _zoomBy(0.1) : null,
+        ),
+      ];
+
+  List<Widget> _tableTools() => [
+        _chip(Icons.vertical_align_top, 'Insert row above',
+            () => _tableOp((t, r) => t.insertRow(r.row))),
+        _chip(Icons.vertical_align_bottom, 'Insert row below',
+            () => _tableOp((t, r) => t.insertRow(r.row + 1))),
+        _sep(),
+        _chip(Icons.keyboard_arrow_left, 'Insert column left',
+            () => _tableOp((t, r) => t.insertColumn(r.col))),
+        _chip(Icons.keyboard_arrow_right, 'Insert column right',
+            () => _tableOp((t, r) => t.insertColumn(r.col + 1))),
+        _sep(),
+        _chip(Icons.remove, 'Delete row',
+            () => _tableOp((t, r) => t.deleteRow(r.row))),
+        _chip(Icons.view_column_outlined, 'Delete column',
+            () => _tableOp((t, r) => t.deleteColumn(r.col))),
+        _sep(),
+        _chip(Icons.delete_outline, 'Delete table', _deleteTable),
+      ];
+
+  List<Widget> _pictureTools() => [
+        _chip(Icons.crop_original, 'Picture at 50% width',
+            () => _setPictureWidth(0.5)),
+        _chip(Icons.crop_original, 'Picture at 75% width',
+            () => _setPictureWidth(0.75)),
+        _chip(Icons.crop_original, 'Picture at full width',
+            () => _setPictureWidth(1.0)),
+        _sep(),
+        _chip(Icons.delete_outline, 'Delete picture', _deleteFocused),
+      ];
 
   List<Widget> _layoutTools() {
     final para = _focusPara;
@@ -782,40 +1164,135 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
   }
 
   Widget _sheet() {
-    final wide = MediaQuery.sizeOf(context).width >= 700;
-    final pad = wide ? 64.0 : 18.0;
-    final paras = _doc.paragraphs;
-    final numbers = _doc.questionNumbers;
-    final options = _doc.optionLabels;
-    return Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 800),
-        child: SingleChildScrollView(
-          padding: EdgeInsets.only(top: wide ? 24 : 0, bottom: 48),
-          child: Container(
-            color: AppColors.surface,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: pad),
-                  child: _headerBlock(),
+    return LayoutBuilder(
+      builder: (context, c) {
+        final base = (c.maxWidth - 24).clamp(280.0, 760.0).toDouble();
+        final pageW = base * _zoom;
+        final s = pageW / PaperPage.widthPt;
+        final layout = PaperLayout.compute(_doc, s);
+        return Container(
+          color: AppColors.surfaceAlt,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: c.maxWidth),
+                child: Column(
+                  children: [
+                    for (var p = 0; p < layout.pageCount; p++)
+                      _pageView(layout, p, s, pageW),
+                  ],
                 ),
-                for (var i = 0; i < paras.length; i++)
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: pad),
-                    child: _rowFor(paras[i], numbers[i], options[i]),
-                  ),
-              ],
+              ),
             ),
           ),
+        );
+      },
+    );
+  }
+
+  /// One A4 page. Blocks sit at the positions the shared layout computed, so
+  /// the page breaks here are the same as in the PDF.
+  Widget _pageView(PaperLayout layout, int page, double s, double pageW) {
+    final pageH = PaperPage.heightPt * s;
+    final left = PaperPage.marginLeftPt * s;
+    final top = PaperPage.marginTopPt * s;
+    final contentW = PaperPage.contentWidthPt * s;
+    final numbers = _doc.questionNumbers;
+    final options = _doc.optionLabels;
+    final headerText = _doc.pageHeader.trim();
+    final footer = [
+      _doc.pageFooter.trim(),
+      if (_doc.showPageNumbers)
+        'Page ${toBanglaNumber(page + 1)} of ${toBanglaNumber(layout.pageCount)}',
+    ].where((t) => t.isNotEmpty).join('     |     ');
+    final note = TextStyle(
+      fontFamily: PaperPage.fontFamily,
+      fontFamilyFallback: PaperPage.fallbackFonts,
+      fontSize: 9 * s,
+      color: AppColors.muted,
+    );
+    return Container(
+      width: pageW,
+      height: pageH,
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x22000000),
+            blurRadius: 10,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: ClipRect(
+        child: Stack(
+          children: [
+            if (page == 0 && headerLinesOf(_doc.header).isEmpty)
+              Positioned(
+                left: left,
+                width: contentW,
+                top: top * 0.35,
+                child: InkWell(
+                  onTap: _editDetails,
+                  child: Text(
+                    'Tap to add paper details (school, exam, subject, time, marks)',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12 * s, color: AppColors.muted),
+                  ),
+                ),
+              ),
+            if (headerText.isNotEmpty)
+              Positioned(
+                left: 0,
+                right: 0,
+                top: (PaperPage.marginTopPt - 30) * s,
+                child: Text(
+                  headerText,
+                  textAlign: TextAlign.center,
+                  style: note,
+                ),
+              ),
+            if (footer.isNotEmpty)
+              Positioned(
+                left: 0,
+                right: 0,
+                top: (PaperPage.heightPt - 44) * s,
+                child: Text(footer, textAlign: TextAlign.center, style: note),
+              ),
+            for (final item in layout.pages[page])
+              Positioned(
+                left: left,
+                top: top + item.top,
+                width: contentW,
+                child: SizedBox(
+                  height: item.height,
+                  child: OverflowBox(
+                    alignment: Alignment.topLeft,
+                    minWidth: contentW,
+                    maxWidth: contentW,
+                    minHeight: 0,
+                    maxHeight: double.infinity,
+                    child: _blockWidget(item.index, numbers, options, s),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _rowFor(DocParagraph p, int? number, String? option) {
+  Widget _blockWidget(
+    int index,
+    List<int?> numbers,
+    List<String?> options,
+    double s,
+  ) {
+    if (index < 0) return _headerBlock(s);
+    final p = _doc.paragraphs[index];
     if (p.kind == ParaKind.pageBreak) {
       return _PageBreakRow(
         selected: _focusId == p.id,
@@ -823,6 +1300,28 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
         onDelete: _focusId == p.id ? _deleteFocused : null,
       );
     }
+    if (p.table != null) {
+      return _TableBlock(
+        para: p,
+        scale: s,
+        keyFor: _keyFor,
+        onActive: _onFieldActive,
+        onText: _onParagraphText,
+        onRestyle: _onRestyle,
+      );
+    }
+    if (p.image != null) {
+      return _ImageBlock(
+        para: p,
+        scale: s,
+        selected: _focusId == p.id,
+        onTap: () => _selectBlock(p.id),
+      );
+    }
+    return _rowFor(p, numbers[index], options[index], s);
+  }
+
+  Widget _rowFor(DocParagraph p, int? number, String? option, double s) {
     final String? label;
     if (number != null) {
       label = '${toBanglaNumber(number)}.';
@@ -836,6 +1335,7 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
       para: p,
       label: label,
       hint: _hintFor(p.kind),
+      scale: s,
       onActive: _onFieldActive,
       onText: _onParagraphText,
       onRestyle: _onRestyle,
@@ -851,47 +1351,38 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
         _ => 'Type here',
       };
 
-  Widget _headerBlock() {
-    final h = _doc.header;
-    final details = [
-      if (h.time.trim().isNotEmpty) 'Time: ${h.time.trim()}',
-      if (h.marks.trim().isNotEmpty) 'Marks: ${h.marks.trim()}',
-    ].join('     ');
-    final lines = [h.school, h.exam, h.subject, details]
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty)
-        .toList();
+  Widget _headerBlock(double s) {
+    final lines = headerLinesOf(_doc.header);
     return InkWell(
       onTap: _editDetails,
-      child: Padding(
-        padding: const EdgeInsets.only(top: 28, bottom: 12),
-        child: lines.isEmpty
-            ? Text(
-                'Tap to add paper details (school, exam, subject, time, marks)',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final line in lines)
+            Padding(
+              padding: EdgeInsets.only(bottom: line.afterPt * s),
+              child: Text(
+                line.text,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.muted),
-              )
-            : Column(
-                children: [
-                  for (var i = 0; i < lines.length; i++)
-                    Text(
-                      lines[i],
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: i == 0 ? 17 : (i == 1 ? 14 : 13),
-                        fontWeight:
-                            i < 2 ? FontWeight.w700 : FontWeight.w400,
-                        height: 1.5,
-                      ),
-                    ),
-                ],
+                style: TextStyle(
+                  fontFamily: PaperPage.fontFamily,
+                  fontFamilyFallback: PaperPage.fallbackFonts,
+                  fontSize: line.pt * s,
+                  height: 1.4,
+                  color: AppColors.text,
+                  fontWeight: line.bold ? FontWeight.w700 : FontWeight.w400,
+                ),
               ),
+            ),
+        ],
       ),
     );
   }
 
   Widget _statusBar() {
-    final breaks = _doc.pageBreakCount;
+    final pages = PaperLayout.compute(_doc, 1).pageCount;
+    final tables = _doc.tableCount;
+    final pictures = _doc.pictureCount;
     return Container(
       color: AppColors.surface,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -899,8 +1390,10 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
         children: [
           Expanded(
             child: Text(
+              '$pages ${pages == 1 ? 'page' : 'pages'}  ·  '
               '${_doc.wordCount} words  ·  ${_doc.questionCount} questions  ·  '
-              '$breaks page ${breaks == 1 ? 'break' : 'breaks'}',
+              '$tables ${tables == 1 ? 'table' : 'tables'}  ·  '
+              '$pictures ${pictures == 1 ? 'picture' : 'pictures'}',
               style: const TextStyle(fontSize: 12, color: AppColors.muted),
               overflow: TextOverflow.ellipsis,
             ),
@@ -925,6 +1418,12 @@ class _ParagraphField extends StatefulWidget {
   final void Function(String id, String text, CharStyle? typing) onText;
   final void Function(DocParagraph next) onRestyle;
 
+  /// Pixels per point, so the text matches the page layout.
+  final double scale;
+
+  /// True for a table cell: no label, no paragraph spacing.
+  final bool inCell;
+
   const _ParagraphField({
     super.key,
     required this.para,
@@ -933,6 +1432,8 @@ class _ParagraphField extends StatefulWidget {
     required this.onActive,
     required this.onText,
     required this.onRestyle,
+    this.scale = 1.0,
+    this.inCell = false,
   });
 
   @override
@@ -950,7 +1451,11 @@ class _ParagraphFieldState extends State<_ParagraphField> {
   @override
   void initState() {
     super.initState();
-    _ctl = _StyledController(widget.para.text, widget.para.styles);
+    _ctl = _StyledController(
+      widget.para.text,
+      widget.para.styles,
+      scale: widget.scale,
+    );
     _lastText = widget.para.text;
     _lastSel = _ctl.selection;
     _ctl.addListener(_onControllerChanged);
@@ -962,6 +1467,7 @@ class _ParagraphFieldState extends State<_ParagraphField> {
     super.didUpdateWidget(oldWidget);
     final p = widget.para;
     _quiet = true;
+    _ctl.scale = widget.scale;
     if (p.text != _ctl.text) {
       _ctl.value = TextEditingValue(
         text: p.text,
@@ -1103,7 +1609,7 @@ class _ParagraphFieldState extends State<_ParagraphField> {
   TextStyle _baseStyle(ParaKind kind) => TextStyle(
         fontFamily: 'Noto Serif Bengali',
         fontFamilyFallback: const ['Hind Siliguri', 'DejaVu Sans'],
-        fontSize: kind.basePt,
+        fontSize: kind.basePt * widget.scale,
         height: 1.5,
         color: AppColors.text,
         fontWeight: kind.bold ? FontWeight.w700 : FontWeight.w400,
@@ -1134,18 +1640,21 @@ class _ParagraphFieldState extends State<_ParagraphField> {
       ),
       onChanged: _handleChanged,
     );
+    final s = widget.scale;
+    // Spacing before and after a block is part of the page layout, so only
+    // the left indent is applied here.
     return Padding(
       padding: EdgeInsets.only(
-        top: p.kind.beforePt,
-        bottom: p.kind.afterPt,
-        left: p.kind == ParaKind.option ? 20 : 0,
+        left: !widget.inCell && p.kind == ParaKind.option
+            ? PaperPage.optionIndentPt * s
+            : 0,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (label != null)
             SizedBox(
-              width: 44,
+              width: PaperPage.gutterPt * s,
               child: Text(
                 label,
                 style: base.copyWith(fontWeight: FontWeight.w700),
@@ -1160,11 +1669,14 @@ class _ParagraphFieldState extends State<_ParagraphField> {
 
 /// Text controller that paints each character with its own formatting.
 class _StyledController extends TextEditingController {
-  _StyledController(String text, List<CharStyle> styles)
+  _StyledController(String text, List<CharStyle> styles, {this.scale = 1.0})
       : _styles = styles,
         super(text: text);
 
   List<CharStyle> _styles;
+
+  /// Pixels per point for character sizes.
+  double scale;
 
   List<CharStyle> get styles => _styles;
 
@@ -1184,12 +1696,20 @@ class _StyledController extends TextEditingController {
     if (t.isEmpty || _styles.length != t.length) {
       return TextSpan(style: style, text: t);
     }
+    // Misspelled words get a red wavy underline.
+    final wrong = List<bool>.filled(t.length, false);
+    for (final r in PaperSpell.misspellings(t)) {
+      for (var k = r.$1; k < r.$2; k++) {
+        wrong[k] = true;
+      }
+    }
     final children = <TextSpan>[];
     var i = 0;
     while (i < t.length) {
       final s = _styles[i];
+      final bad = wrong[i];
       var j = i + 1;
-      while (j < t.length && _styles[j] == s) {
+      while (j < t.length && _styles[j] == s && wrong[j] == bad) {
         j++;
       }
       children.add(
@@ -1198,14 +1718,122 @@ class _StyledController extends TextEditingController {
           style: TextStyle(
             fontWeight: s.bold ? FontWeight.w700 : null,
             fontStyle: s.italic ? FontStyle.italic : null,
-            decoration: s.underline ? TextDecoration.underline : null,
-            fontSize: s.size,
+            decoration: (s.underline || bad) ? TextDecoration.underline : null,
+            decorationStyle: bad ? TextDecorationStyle.wavy : null,
+            decorationColor: bad ? const Color(0xFFD32F2F) : null,
+            fontSize: s.size == null ? null : s.size! * scale,
           ),
         ),
       );
       i = j;
     }
     return TextSpan(style: style, children: children);
+  }
+}
+
+/// A table: a grid of cells, each an editable field. The layout measures
+/// each row by its tallest cell, the same as the page painter.
+class _TableBlock extends StatelessWidget {
+  final DocParagraph para;
+  final double scale;
+  final GlobalKey<_ParagraphFieldState> Function(String id) keyFor;
+  final void Function(String id, CharStyle active) onActive;
+  final void Function(String id, String text, CharStyle? typing) onText;
+  final void Function(DocParagraph next) onRestyle;
+
+  const _TableBlock({
+    required this.para,
+    required this.scale,
+    required this.keyFor,
+    required this.onActive,
+    required this.onText,
+    required this.onRestyle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final table = para.table;
+    if (table == null) return const SizedBox.shrink();
+    final pad = PaperPage.cellPadPt * scale;
+    final edge = BorderSide(color: PaperPage.rule, width: 0.8);
+    return Column(
+      children: [
+        for (final row in table.rows)
+          IntrinsicHeight(
+            child: Row(
+              children: [
+                for (final cell in row)
+                  Expanded(
+                    child: Container(
+                      padding: EdgeInsets.all(pad),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          top: edge,
+                          left: edge,
+                          right: edge,
+                          bottom: edge,
+                        ),
+                      ),
+                      child: _ParagraphField(
+                        key: keyFor(cell.id),
+                        para: cell,
+                        label: null,
+                        hint: '',
+                        scale: scale,
+                        inCell: true,
+                        onActive: onActive,
+                        onText: onText,
+                        onRestyle: onRestyle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// A picture, drawn at its chosen share of the text width.
+class _ImageBlock extends StatelessWidget {
+  final DocParagraph para;
+  final double scale;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ImageBlock({
+    required this.para,
+    required this.scale,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final image = para.image;
+    if (image == null) return const SizedBox.shrink();
+    final w = PaperPage.contentWidthPt * scale * image.widthFraction;
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        alignment: Alignment.topCenter,
+        decoration: selected
+            ? BoxDecoration(
+                border: Border.all(color: AppColors.primary, width: 1.5),
+              )
+            : null,
+        child: SizedBox(
+          width: w,
+          height: w * image.aspect,
+          child: Image.memory(
+            image.bytes,
+            fit: BoxFit.fill,
+            gaplessPlayback: true,
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -1225,7 +1853,7 @@ class _PageBreakRow extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: EdgeInsets.zero,
         color: selected ? AppColors.surfaceAlt : null,
         child: Row(
           children: [
@@ -1242,7 +1870,13 @@ class _PageBreakRow extends StatelessWidget {
               IconButton(
                 tooltip: 'Remove page break',
                 onPressed: onDelete,
-                icon: const Icon(Icons.delete_outline, size: 20),
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints.tightFor(
+                  width: 28,
+                  height: 28,
+                ),
+                icon: const Icon(Icons.delete_outline, size: 18),
               ),
           ],
         ),

@@ -7,36 +7,25 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../models/paper_document.dart';
+import 'paper_document_layout.dart';
 
-/// Lays out a [PaperDocument] on A4 pages and packs them into a PDF.
+/// Draws a [PaperDocument] page by page and packs the pages into a PDF.
 ///
-/// Text is measured and drawn with Flutter's own text engine, so Bengali
-/// conjuncts and vowel signs are shaped correctly. Each page is rendered as
-/// an image and embedded in the PDF (the same approach as the question
-/// paper export).
+/// The on-screen page view and the PDF both call [paintPage] with the same
+/// [PaperLayout], so the page breaks, tables and pictures match in both.
+/// Text is shaped by Flutter's text engine, so Bengali conjuncts and vowel
+/// signs render correctly.
 abstract final class PaperDocumentRender {
-  static const double _dpi = 150;
-  static const double _pageW = 1240; // A4 at 150 dpi
-  static const double _pageH = 1754;
-  static const double _marginX = 130;
-  static const double _marginTop = 130;
-  static const double _marginBottom = 140;
-  static const double _contentW = _pageW - _marginX * 2;
-  static const double _gutter = 56;
-  static const String _family = 'Noto Serif Bengali';
-  static const List<String> _fallback = ['Hind Siliguri', 'DejaVu Sans'];
-  static const Color _ink = Color(0xFF111111);
-  static const Color _muted = Color(0xFF666666);
-
-  static double _pt(double pt) => pt * _dpi / 72;
+  /// Pixels per point used for PDF pages (150 dpi).
+  static const double pdfScale = 150 / 72;
 
   /// Builds the PDF bytes for [doc].
   static Future<Uint8List> build(PaperDocument doc) async {
-    final lines = _layoutLines(doc);
-    final pages = _paginate(lines);
+    final layout = PaperLayout.compute(doc, pdfScale);
+    final images = await decodeImages(doc);
     final pdf = pw.Document(title: doc.title);
-    for (var i = 0; i < pages.length; i++) {
-      final png = await _renderPage(doc, pages[i], i + 1, pages.length);
+    for (var i = 0; i < layout.pageCount; i++) {
+      final png = await renderPagePng(doc, layout, i, images);
       pdf.addPage(
         pw.Page(
           pageFormat: PdfPageFormat.a4,
@@ -50,233 +39,45 @@ abstract final class PaperDocumentRender {
         ),
       );
     }
+    for (final img in images.values) {
+      img.dispose();
+    }
     return pdf.save();
   }
 
-  // ── Layout ─────────────────────────────────────────────────────
-
-  static List<_Line> _layoutLines(PaperDocument doc) {
-    final out = <_Line>[];
-    final h = doc.header;
-    if (!h.isEmpty) {
-      void centred(
-        String text,
-        double pt, {
-        bool bold = false,
-        double after = 4,
-      }) {
-        if (text.trim().isEmpty) return;
-        out.add(
-          _make(
-            span: TextSpan(text: text.trim(), style: _plain(pt, bold: bold)),
-            align: TextAlign.center,
-            after: _pt(after),
-          ),
-        );
+  /// Decodes every picture in [doc] (keyed by block id) for painting.
+  static Future<Map<String, ui.Image>> decodeImages(PaperDocument doc) async {
+    final out = <String, ui.Image>{};
+    for (final p in doc.allTextBlocks) {
+      final image = p.image;
+      if (image == null) continue;
+      try {
+        final codec = await ui.instantiateImageCodec(image.bytes);
+        final frame = await codec.getNextFrame();
+        out[p.id] = frame.image;
+        codec.dispose();
+      } catch (_) {
+        // A picture that cannot be decoded is skipped (drawn as blank).
       }
-
-      centred(h.school, 17, bold: true);
-      centred(h.exam, 14, bold: true);
-      centred(h.subject, 13);
-      final details = [
-        if (h.time.trim().isNotEmpty) 'Time: ${h.time.trim()}',
-        if (h.marks.trim().isNotEmpty) 'Marks: ${h.marks.trim()}',
-      ].join('     ');
-      centred(details, 12, after: 12);
-    }
-
-    final numbers = doc.questionNumbers;
-    final options = doc.optionLabels;
-    for (var i = 0; i < doc.paragraphs.length; i++) {
-      final p = doc.paragraphs[i];
-      if (p.kind == ParaKind.pageBreak) {
-        out.add(_Line.breakPage());
-        continue;
-      }
-      final base = TextStyle(
-        fontFamily: _family,
-        fontFamilyFallback: _fallback,
-        fontSize: _pt(p.kind.basePt),
-        height: 1.45,
-        color: _ink,
-        fontWeight: p.kind.bold ? FontWeight.w700 : FontWeight.w400,
-        fontStyle: p.kind.italic ? FontStyle.italic : FontStyle.normal,
-      );
-      final span = p.text.isEmpty
-          ? TextSpan(style: base, text: ' ')
-          : TextSpan(style: base, children: _runs(p));
-
-      TextPainter? label;
-      double labelX = 0;
-      final n = numbers[i];
-      final optionLabel = options[i];
-      if (n != null) {
-        label = _labelPainter('${toBanglaNumber(n)}.', base);
-      } else if (optionLabel != null) {
-        labelX = _pt(20);
-        label = _labelPainter('$optionLabel)', base);
-      }
-      final indent = label == null ? 0.0 : labelX + _gutter;
-      out.add(
-        _make(
-          span: span,
-          align: _align(p.align),
-          indent: indent,
-          width: _contentW - indent,
-          label: label,
-          labelX: labelX,
-          before: _pt(p.kind.beforePt),
-          after: _pt(p.kind.afterPt),
-        ),
-      );
     }
     return out;
   }
 
-  static TextStyle _plain(double pt, {bool bold = false}) => TextStyle(
-        fontFamily: _family,
-        fontFamilyFallback: _fallback,
-        fontSize: _pt(pt),
-        height: 1.4,
-        color: _ink,
-        fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
-      );
-
-  static TextPainter _labelPainter(String text, TextStyle base) =>
-      TextPainter(
-        text: TextSpan(
-          text: text,
-          style: base.copyWith(fontWeight: FontWeight.w700),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-
-  static _Line _make({
-    required TextSpan span,
-    TextAlign align = TextAlign.left,
-    double indent = 0,
-    double width = _contentW,
-    TextPainter? label,
-    double labelX = 0,
-    double before = 0,
-    double after = 0,
-  }) {
-    final body = TextPainter(
-      text: span,
-      textAlign: align,
-      textDirection: TextDirection.ltr,
-    )..layout(maxWidth: width);
-    return _Line(
-      body: body,
-      label: label,
-      bodyX: indent,
-      labelX: labelX,
-      before: before,
-      after: after,
-      pageBreak: false,
-    );
-  }
-
-  static TextAlign _align(ParaAlign a) => switch (a) {
-        ParaAlign.left => TextAlign.left,
-        ParaAlign.center => TextAlign.center,
-        ParaAlign.right => TextAlign.right,
-        ParaAlign.justify => TextAlign.justify,
-      };
-
-  /// Text runs of a paragraph: consecutive characters with equal styles.
-  static List<TextSpan> _runs(DocParagraph p) {
-    final out = <TextSpan>[];
-    var i = 0;
-    while (i < p.text.length) {
-      final s = p.styles[i];
-      var j = i + 1;
-      while (j < p.text.length && p.styles[j] == s) {
-        j++;
-      }
-      final size = s.size;
-      out.add(
-        TextSpan(
-          text: p.text.substring(i, j),
-          style: TextStyle(
-            fontWeight: s.bold ? FontWeight.w700 : null,
-            fontStyle: s.italic ? FontStyle.italic : null,
-            decoration: s.underline ? TextDecoration.underline : null,
-            fontSize: size == null ? null : _pt(size),
-          ),
-        ),
-      );
-      i = j;
-    }
-    return out;
-  }
-
-  // ── Pagination ─────────────────────────────────────────────────
-
-  static List<List<_Placed>> _paginate(List<_Line> lines) {
-    const bottom = _pageH - _marginBottom;
-    final pages = <List<_Placed>>[[]];
-    var y = _marginTop;
-    for (final line in lines) {
-      if (line.pageBreak) {
-        if (pages.last.isNotEmpty) pages.add([]);
-        y = _marginTop;
-        continue;
-      }
-      y += line.before;
-      if (y + line.height > bottom && pages.last.isNotEmpty) {
-        pages.add([]);
-        y = _marginTop;
-      }
-      pages.last.add(_Placed(line, y));
-      y += line.height + line.after;
-    }
-    if (pages.length > 1 && pages.last.isEmpty) pages.removeLast();
-    return pages;
-  }
-
-  // ── Painting ───────────────────────────────────────────────────
-
-  static Future<Uint8List> _renderPage(
+  /// Renders page [pageIndex] (0-based) as PNG at the PDF scale.
+  static Future<Uint8List> renderPagePng(
     PaperDocument doc,
-    List<_Placed> items,
-    int pageNo,
-    int pageCount,
+    PaperLayout layout,
+    int pageIndex,
+    Map<String, ui.Image> images,
   ) async {
+    final s = layout.scale;
+    final w = (PaperPage.widthPt * s).round();
+    final h = (PaperPage.heightPt * s).round();
     final recorder = ui.PictureRecorder();
-    final canvas = ui.Canvas(
-      recorder,
-      ui.Rect.fromLTWH(0, 0, _pageW, _pageH),
-    );
-    canvas.drawRect(
-      ui.Rect.fromLTWH(0, 0, _pageW, _pageH),
-      ui.Paint()..color = const Color(0xFFFFFFFF),
-    );
-
-    final pageHeader = doc.pageHeader.trim();
-    if (pageHeader.isNotEmpty) {
-      _paintCentred(canvas, pageHeader, 9, _marginTop - 60);
-    }
-    final footer = [
-      doc.pageFooter.trim(),
-      if (doc.showPageNumbers)
-        'Page ${toBanglaNumber(pageNo)} of ${toBanglaNumber(pageCount)}',
-    ].where((s) => s.isNotEmpty).join('     |     ');
-    if (footer.isNotEmpty) {
-      _paintCentred(canvas, footer, 9, _pageH - 85);
-    }
-
-    for (final placed in items) {
-      final line = placed.line;
-      line.label?.paint(
-        canvas,
-        ui.Offset(_marginX + line.labelX, placed.y),
-      );
-      line.body.paint(canvas, ui.Offset(_marginX + line.bodyX, placed.y));
-    }
-
+    final canvas = ui.Canvas(recorder, ui.Rect.fromLTWH(0, 0, w * 1.0, h * 1.0));
+    paintPage(canvas, doc, layout, pageIndex, images);
     final picture = recorder.endRecording();
-    final image = await picture.toImage(_pageW.round(), _pageH.round());
+    final image = await picture.toImage(w, h);
     final data = await image.toByteData(format: ui.ImageByteFormat.png);
     image.dispose();
     picture.dispose();
@@ -284,25 +85,182 @@ abstract final class PaperDocumentRender {
     return data.buffer.asUint8List();
   }
 
+  /// Paints page [pageIndex] of [layout] onto [canvas] in pixel units
+  /// (points multiplied by `layout.scale`). The canvas must already be sized
+  /// to the page.
+  static void paintPage(
+    ui.Canvas canvas,
+    PaperDocument doc,
+    PaperLayout layout,
+    int pageIndex,
+    Map<String, ui.Image> images,
+  ) {
+    final s = layout.scale;
+    final pageW = PaperPage.widthPt * s;
+    final pageH = PaperPage.heightPt * s;
+    canvas.drawRect(
+      ui.Rect.fromLTWH(0, 0, pageW, pageH),
+      ui.Paint()..color = const Color(0xFFFFFFFF),
+    );
+
+    final contentX = PaperPage.marginLeftPt * s;
+    final contentY = PaperPage.marginTopPt * s;
+    final contentW = PaperPage.contentWidthPt * s;
+
+    final pageHeader = doc.pageHeader.trim();
+    if (pageHeader.isNotEmpty) {
+      _paintCentred(canvas, pageHeader, 9, s, contentX, (PaperPage.marginTopPt - 30) * s, contentW);
+    }
+    final footer = [
+      doc.pageFooter.trim(),
+      if (doc.showPageNumbers)
+        'Page ${toBanglaNumber(pageIndex + 1)} of ${toBanglaNumber(layout.pageCount)}',
+    ].where((t) => t.isNotEmpty).join('     |     ');
+    if (footer.isNotEmpty) {
+      _paintCentred(canvas, footer, 9, s, contentX, (PaperPage.heightPt - 44) * s, contentW);
+    }
+
+    final numbers = doc.questionNumbers;
+    final options = doc.optionLabels;
+    final paragraphs = doc.paragraphs;
+
+    for (final item in layout.pages[pageIndex]) {
+      final y = contentY + item.top;
+      if (item.index == -1) {
+        _paintHeader(canvas, doc.header, s, contentX, contentY, contentW);
+        continue;
+      }
+      if (item.isBreak) continue;
+      final p = paragraphs[item.index];
+      final table = p.table;
+      if (table != null) {
+        _paintTable(canvas, table, s, contentX, y, contentW);
+        continue;
+      }
+      final image = p.image;
+      if (image != null) {
+        _paintImage(canvas, image, images[p.id], s, contentX, y, contentW);
+        continue;
+      }
+      final n = numbers[item.index];
+      final optionLabel = options[item.index];
+      double labelX = 0;
+      TextPainter? label;
+      if (n != null) {
+        label = labelPainter('${toBanglaNumber(n)}.', p.kind, s);
+      } else if (optionLabel != null) {
+        labelX = PaperPage.optionIndentPt * s;
+        label = labelPainter('$optionLabel)', p.kind, s);
+      }
+      label?.paint(canvas, ui.Offset(contentX + labelX, y));
+      final body = paragraphPainter(p, s, contentW - textIndent(p, s));
+      body.paint(canvas, ui.Offset(contentX + textIndent(p, s), y));
+    }
+  }
+
+  static void _paintHeader(
+    ui.Canvas canvas,
+    PaperHeader header,
+    double s,
+    double x,
+    double y,
+    double width,
+  ) {
+    var cy = y;
+    for (final line in headerLinesOf(header)) {
+      final tp = headerPainter(line, s, width);
+      tp.paint(canvas, ui.Offset(x, cy));
+      cy += tp.height + line.afterPt * s;
+    }
+  }
+
+  static void _paintTable(
+    ui.Canvas canvas,
+    DocTable table,
+    double s,
+    double x,
+    double y,
+    double width,
+  ) {
+    final cols = table.columnCount < 1 ? 1 : table.columnCount;
+    final cellW = width / cols;
+    final pad = PaperPage.cellPadPt * s;
+    final heights = tableRowHeights(table, s, width);
+    final line = ui.Paint()
+      ..color = PaperPage.rule
+      ..style = ui.PaintingStyle.stroke
+      ..strokeWidth = 0.8 * s;
+    var rowY = y;
+    for (var r = 0; r < table.rows.length; r++) {
+      final row = table.rows[r];
+      for (var c = 0; c < row.length; c++) {
+        final cx = x + c * cellW;
+        final rect = ui.Rect.fromLTWH(cx, rowY, cellW, heights[r]);
+        canvas.drawRect(rect, line);
+        final tp = paragraphPainter(row[c], s, cellW - pad * 2);
+        tp.paint(canvas, ui.Offset(cx + pad, rowY + pad));
+      }
+      rowY += heights[r];
+    }
+  }
+
+  static void _paintImage(
+    ui.Canvas canvas,
+    DocImage image,
+    ui.Image? decoded,
+    double s,
+    double x,
+    double y,
+    double width,
+  ) {
+    final w = width * image.widthFraction;
+    final h = w * image.aspect;
+    final dst = ui.Rect.fromLTWH(x + (width - w) / 2, y, w, h);
+    if (decoded == null) {
+      canvas.drawRect(
+        dst,
+        ui.Paint()
+          ..color = PaperPage.rule
+          ..style = ui.PaintingStyle.stroke,
+      );
+      return;
+    }
+    final src = ui.Rect.fromLTWH(
+      0,
+      0,
+      decoded.width.toDouble(),
+      decoded.height.toDouble(),
+    );
+    canvas.drawImageRect(
+      decoded,
+      src,
+      dst,
+      ui.Paint()..filterQuality = ui.FilterQuality.medium,
+    );
+  }
+
   static void _paintCentred(
     ui.Canvas canvas,
     String text,
     double pt,
+    double s,
+    double x,
     double y,
+    double width,
   ) {
     final tp = TextPainter(
       text: TextSpan(
         text: text,
         style: TextStyle(
-          fontFamily: _family,
-          fontFamilyFallback: _fallback,
-          fontSize: _pt(pt),
-          color: _muted,
+          fontFamily: PaperPage.fontFamily,
+          fontFamilyFallback: PaperPage.fallbackFonts,
+          fontSize: pt * s,
+          color: PaperPage.muted,
         ),
       ),
       textDirection: TextDirection.ltr,
-    )..layout(maxWidth: _contentW);
-    tp.paint(canvas, ui.Offset(_marginX + (_contentW - tp.width) / 2, y));
+    )..layout(maxWidth: width);
+    tp.paint(canvas, ui.Offset(x + (width - tp.width) / 2, y));
   }
 
   /// Sends the rendered PDF to the system print dialog.
@@ -327,48 +285,4 @@ abstract final class PaperDocumentRender {
     final clean = title.replaceAll(RegExp(r'[\\/:*?"<>|]'), ' ').trim();
     return clean.isEmpty ? 'paper' : clean;
   }
-}
-
-class _Line {
-  final TextPainter body;
-  final TextPainter? label;
-  final double bodyX;
-  final double labelX;
-  final double before;
-  final double after;
-  final bool pageBreak;
-
-  const _Line({
-    required this.body,
-    required this.label,
-    required this.bodyX,
-    required this.labelX,
-    required this.before,
-    required this.after,
-    required this.pageBreak,
-  });
-
-  factory _Line.breakPage() => _Line(
-        body: TextPainter(
-          text: const TextSpan(text: ''),
-          textDirection: TextDirection.ltr,
-        )..layout(),
-        label: null,
-        bodyX: 0,
-        labelX: 0,
-        before: 0,
-        after: 0,
-        pageBreak: true,
-      );
-
-  double get height {
-    final labelH = label?.height ?? 0;
-    return body.height > labelH ? body.height : labelH;
-  }
-}
-
-class _Placed {
-  final _Line line;
-  final double y;
-  const _Placed(this.line, this.y);
 }
