@@ -252,8 +252,7 @@ double headerHeight(PaperDocument doc, double scale) {
   var h = 0.0;
   final logo = doc.header.logo;
   if (logo != null) {
-    h += contentW * logo.widthFraction * logo.aspect +
-        headerLogoGapPt * scale;
+    h += contentW * logo.widthFraction * logo.aspect + headerLogoGapPt * scale;
   }
   for (final l in lines) {
     final tp = headerPainter(l, scale, contentW);

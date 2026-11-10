@@ -1931,8 +1931,7 @@ class _StyledController extends TextEditingController {
             decorationStyle: bad ? TextDecorationStyle.wavy : null,
             decorationColor: bad ? const Color(0xFFD32F2F) : null,
             color: s.color == null ? null : Color(s.color!),
-            backgroundColor:
-                s.highlight == null ? null : Color(s.highlight!),
+            backgroundColor: s.highlight == null ? null : Color(s.highlight!),
             fontSize: s.size == null ? null : s.size! * scale,
           ),
         ),
