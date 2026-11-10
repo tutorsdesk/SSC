@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// One-time permission prompt shown after a fresh install (Android only).
@@ -49,21 +48,21 @@ const _items = <_PermissionItem>[
     permission: Permission.camera,
     title: 'Camera',
     reason: 'Scan OMR answer sheets and take photos of question papers.',
-    icon: PhosphorIcons.camera,
+    icon: Icons.photo_camera_outlined,
   ),
   _PermissionItem(
     permission: Permission.manageExternalStorage,
     title: 'All files access',
     reason:
         'Keep an automatic backup of your paper library so it survives reinstalls. Opens a system settings page.',
-    icon: PhosphorIcons.fileText,
+    icon: Icons.folder_outlined,
   ),
   _PermissionItem(
     permission: Permission.requestInstallPackages,
     title: 'Install apps',
     reason:
         'Install future app updates you approve. Opens a system settings page.',
-    icon: PhosphorIcons.downloadSimple,
+    icon: Icons.system_update_outlined,
   ),
 ];
 
@@ -209,7 +208,7 @@ class _PermissionRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           if (granted)
-            Icon(PhosphorIcons.checkCircle, color: theme.colorScheme.primary)
+            Icon(Icons.check_circle, color: theme.colorScheme.primary)
           else
             TextButton(
               onPressed: busy ? null : onAllow,
