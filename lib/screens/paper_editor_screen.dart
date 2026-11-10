@@ -747,8 +747,8 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
       ),
       body: CallbackShortcuts(
         bindings: {
-          const SingleActivator(LogicalKeyboardKey.keyS, control: true):
-              () => _saveNow(announce: true),
+          const SingleActivator(LogicalKeyboardKey.keyS, control: true): () =>
+              _saveNow(announce: true),
           const SingleActivator(LogicalKeyboardKey.keyP, control: true): () {
             if (!_busy) _export(print: true);
           },
