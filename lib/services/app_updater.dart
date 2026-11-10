@@ -169,8 +169,7 @@ abstract final class AppUpdater {
         assetUrls: assetUrls,
         current: currentBuild,
       );
-      if (candidate != null &&
-          (best == null || candidate.build > best.build)) {
+      if (candidate != null && (best == null || candidate.build > best.build)) {
         best = candidate;
       }
     }
