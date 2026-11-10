@@ -456,10 +456,22 @@ jobs:
           test -n "$signer"
           expected=$(printf '%s' "$RELEASE_CERT_SHA256" | tr -d ':' | tr '[:upper:]' '[:lower:]' | xargs)
           for apk in build/app/outputs/flutter-apk/app-*-release.apk; do
-            "$signer" verify --verbose --print-certs "$apk" > certificate-check.txt
-            ! grep -qi 'Android Debug' certificate-check.txt
+            echo "Checking $apk"
+            if ! "$signer" verify --verbose --print-certs "$apk" > certificate-check.txt 2>&1; then
+              echo "apksigner verify failed:"; cat certificate-check.txt; exit 1
+            fi
+            if grep -qi 'Android Debug' certificate-check.txt; then
+              echo "APK is debug-signed:"; cat certificate-check.txt; exit 1
+            fi
             actual=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' certificate-check.txt | tr '[:upper:]' '[:lower:]')
-            test "$actual" = "$expected"
+            if [ "$actual" != "$expected" ]; then
+              echo "Certificate pin mismatch."
+              echo "expected: $expected"
+              echo "actual:   ${actual:-<none>}"
+              cat certificate-check.txt
+              exit 1
+            fi
+            echo "Certificate matches the pin."
           done
 
       - name: Remove restored keystore
