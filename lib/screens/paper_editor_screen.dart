@@ -661,6 +661,20 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
     _saveTimer = Timer(const Duration(milliseconds: 1200), () => _saveNow());
   }
 
+  /// Back button with unsaved edits: save first, and stay on the editor if
+  /// the save fails, so no work is lost.
+  Future<void> _leaveAfterSave() async {
+    _saveTimer?.cancel();
+    final error = await _persist();
+    if (!mounted) return;
+    if (error != null) {
+      setState(() => _status = 'Could not save. Try again.');
+      _snack('Could not save (${error.runtimeType}). Try again.');
+      return;
+    }
+    Navigator.of(context).pop();
+  }
+
   /// Saves now. Failures are always shown; success is shown when [announce]
   /// is set (the Save button and Ctrl+S), so autosave stays quiet.
   Future<void> _saveNow({bool announce = false}) async {
@@ -723,7 +737,14 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      // Leaving with unsaved edits waits for the save (and the saved paper's
+      // page update) first, so the screen behind never reads old pages.
+      canPop: !_dirty,
+      onPopInvoked: (didPop) {
+        if (!didPop) unawaited(_leaveAfterSave());
+      },
+      child: Scaffold(
       backgroundColor: AppColors.surfaceAlt,
       appBar: AppBar(
         titleSpacing: 0,
@@ -778,6 +799,7 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

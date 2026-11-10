@@ -36,9 +36,11 @@ class _SavedPaperScreenState extends State<SavedPaperScreen> {
     try {
       saved = await PaperLibrary.savedPaper(widget.entry.id);
       var images = <Uint8List>[];
-      for (var i = 1;
-          widget.entry.kind != 'pdf' && i <= widget.entry.pages;
-          i++) {
+      // The saved record has the current page count; the list entry can be
+      // older (the paper's pages may have been replaced by an edit).
+      final count =
+          (saved?.pages ?? 0) > 0 ? saved!.pages : widget.entry.pages;
+      for (var i = 1; widget.entry.kind != 'pdf' && i <= count; i++) {
         final bytes = await PaperLibrary.pageBytes(widget.entry.id, i);
         if (bytes == null)
           throw StateError(
