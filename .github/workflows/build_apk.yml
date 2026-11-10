@@ -446,7 +446,7 @@ jobs:
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
           set -o pipefail
-          flutter build apk --release --split-per-abi --build-number=${{ github.run_number }} --dart-define=BUILD_NUMBER=${{ github.run_number }} 2>&1 | tee flutter-build.log
+          flutter build apk --release --split-per-abi --build-number=${{ github.run_number }} --dart-define=BUILD_NUMBER=${{ github.run_number }} --dart-define=ENABLE_PLAN_DIAGNOSTICS=true 2>&1 | tee flutter-build.log
 
       - name: Verify APK certificates before distribution
         if: ${{ env.HAS_RELEASE_SIGNING == 'true' }}
