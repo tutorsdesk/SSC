@@ -127,6 +127,19 @@ TextStyle paperTextStyle(ParaKind kind, double scale) => TextStyle(
     );
 
 /// Groups runs of equal formatting into spans.
+/// Gap between the logo and the header lines, in points.
+const double headerLogoGapPt = 10;
+
+/// Underline and strikethrough together, as one decoration.
+TextDecoration? _decorationFor(CharStyle s) {
+  final parts = [
+    if (s.underline) TextDecoration.underline,
+    if (s.strike) TextDecoration.lineThrough,
+  ];
+  if (parts.isEmpty) return null;
+  return TextDecoration.combine(parts);
+}
+
 List<TextSpan> paperRuns(DocParagraph p, double scale) {
   final out = <TextSpan>[];
   var i = 0;
@@ -143,7 +156,9 @@ List<TextSpan> paperRuns(DocParagraph p, double scale) {
         style: TextStyle(
           fontWeight: s.bold ? FontWeight.w700 : null,
           fontStyle: s.italic ? FontStyle.italic : null,
-          decoration: s.underline ? TextDecoration.underline : null,
+          decoration: _decorationFor(s),
+          color: s.color == null ? null : Color(s.color!),
+          backgroundColor: s.highlight == null ? null : Color(s.highlight!),
           fontSize: size == null ? null : size * scale,
         ),
       ),
@@ -233,9 +248,13 @@ TextPainter headerPainter(HeaderLine line, double scale, double width) =>
 /// Total height of the header block (including the space after it).
 double headerHeight(PaperDocument doc, double scale) {
   final lines = headerLinesOf(doc.header);
-  if (lines.isEmpty) return 0;
   final contentW = PaperPage.contentWidthPt * scale;
   var h = 0.0;
+  final logo = doc.header.logo;
+  if (logo != null) {
+    h += contentW * logo.widthFraction * logo.aspect +
+        headerLogoGapPt * scale;
+  }
   for (final l in lines) {
     final tp = headerPainter(l, scale, contentW);
     h += tp.height + l.afterPt * scale;

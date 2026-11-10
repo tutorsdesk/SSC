@@ -9,6 +9,9 @@ import 'package:printing/printing.dart';
 import '../models/paper_document.dart';
 import 'paper_document_layout.dart';
 
+/// Key of the decoded header logo in the image map.
+const String headerLogoKey = '__header_logo__';
+
 /// Draws a [PaperDocument] page by page and packs the pages into a PDF.
 ///
 /// The on-screen page view and the PDF both call [paintPage] with the same
@@ -65,6 +68,17 @@ abstract final class PaperDocumentRender {
   /// Decodes every picture in [doc] (keyed by block id) for painting.
   static Future<Map<String, ui.Image>> decodeImages(PaperDocument doc) async {
     final out = <String, ui.Image>{};
+    final logo = doc.header.logo;
+    if (logo != null) {
+      try {
+        final codec = await ui.instantiateImageCodec(logo.bytes);
+        final frame = await codec.getNextFrame();
+        out[headerLogoKey] = frame.image;
+        codec.dispose();
+      } catch (_) {
+        // A logo that cannot be decoded is left out of the page.
+      }
+    }
     for (final p in doc.allTextBlocks) {
       final image = p.image;
       if (image == null) continue;
@@ -147,7 +161,15 @@ abstract final class PaperDocumentRender {
     for (final item in layout.pages[pageIndex]) {
       final y = contentY + item.top;
       if (item.index == -1) {
-        _paintHeader(canvas, doc.header, s, contentX, contentY, contentW);
+        _paintHeader(
+          canvas,
+          doc.header,
+          s,
+          contentX,
+          contentY,
+          contentW,
+          images[headerLogoKey],
+        );
         continue;
       }
       if (item.isBreak) continue;
@@ -185,8 +207,33 @@ abstract final class PaperDocumentRender {
     double x,
     double y,
     double width,
+    ui.Image? logoImage,
   ) {
     var cy = y;
+    final logo = header.logo;
+    if (logo != null) {
+      final w = width * logo.widthFraction;
+      final h = w * logo.aspect;
+      final left = switch (header.logoAlign) {
+        ParaAlign.right => x + width - w,
+        ParaAlign.center => x + (width - w) / 2,
+        _ => x,
+      };
+      if (logoImage != null) {
+        canvas.drawImageRect(
+          logoImage,
+          ui.Rect.fromLTWH(
+            0,
+            0,
+            logoImage.width.toDouble(),
+            logoImage.height.toDouble(),
+          ),
+          ui.Rect.fromLTWH(left, cy, w, h),
+          ui.Paint()..filterQuality = ui.FilterQuality.high,
+        );
+      }
+      cy += h + headerLogoGapPt * s;
+    }
     for (final line in headerLinesOf(header)) {
       final tp = headerPainter(line, s, width);
       tp.paint(canvas, ui.Offset(x, cy));

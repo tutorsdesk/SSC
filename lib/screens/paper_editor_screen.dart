@@ -387,6 +387,51 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
     ]);
   }
 
+  /// Adds a logo at the top of the paper. It is placed with the paper
+  /// details and can be aligned or removed from the Layout tools.
+  Future<void> _insertLogo() async {
+    final result = await FilePicker.platform.pickFiles(
+      dialogTitle: 'Choose the paper logo',
+      type: FileType.image,
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final bytes = result.files.single.bytes;
+    if (bytes == null) {
+      _snack('Could not read that picture.');
+      return;
+    }
+    final prepared = await PaperImageCodec.prepare(bytes);
+    if (prepared == null) {
+      _snack('That file is not a picture this editor can read.');
+      return;
+    }
+    if (!mounted) return;
+    _commit(
+      _doc.copyWith(
+        header: _doc.header.copyWith(
+          logo: DocImage(
+            bytes: prepared.bytes,
+            aspect: prepared.aspect,
+            widthFraction: 0.2,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _setLogoAlign(ParaAlign align) {
+    if (_doc.header.logo == null) {
+      _snack('Add a logo first.');
+      return;
+    }
+    _commit(_doc.copyWith(header: _doc.header.copyWith(logoAlign: align)));
+  }
+
+  void _removeLogo() {
+    _commit(_doc.copyWith(header: _doc.header.copyWith(clearLogo: true)));
+  }
+
   void _setPictureWidth(double fraction) {
     final id = _focusId;
     if (id == null) return;
@@ -612,7 +657,7 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
     if (r == null) return;
     _commit(
       _doc.copyWith(
-        header: PaperHeader(
+        header: h.copyWith(
           school: r['school'] ?? '',
           exam: r['exam'] ?? '',
           subject: r['subject'] ?? '',
@@ -993,6 +1038,60 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
     );
   }
 
+  static const List<(String, int)> _textColors = [
+    ('Black', 0xFF000000),
+    ('Red', 0xFFC62828),
+    ('Orange', 0xFFEF6C00),
+    ('Green', 0xFF2E7D32),
+    ('Blue', 0xFF1565C0),
+    ('Purple', 0xFF6A1B9A),
+  ];
+
+  static const List<(String, int)> _highlightColors = [
+    ('Yellow', 0xFFFFF59D),
+    ('Green', 0xFFC8E6C9),
+    ('Blue', 0xFFBBDEFB),
+    ('Pink', 0xFFF8BBD0),
+    ('Orange', 0xFFFFE0B2),
+  ];
+
+  /// Colour menu for the ribbon. The first entry (-1) clears the colour.
+  Widget _swatchMenu({
+    required String tooltip,
+    required Object icon,
+    required bool enabled,
+    required List<(String, int)> colors,
+    required void Function(int? argb) apply,
+  }) {
+    return PopupMenuButton<int>(
+      tooltip: tooltip,
+      enabled: enabled,
+      icon: AppIcon(icon, size: 18),
+      onSelected: (v) => apply(v < 0 ? null : v),
+      itemBuilder: (_) => [
+        const PopupMenuItem<int>(value: -1, child: Text('None (default)')),
+        for (final (name, c) in colors)
+          PopupMenuItem<int>(
+            value: c,
+            child: Row(
+              children: [
+                Container(
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: Color(c),
+                    border: Border.all(color: Colors.black26),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(name),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
   List<Widget> _homeTools() {
     final hasField = _fieldState != null;
     final para = _focusPara;
@@ -1026,6 +1125,26 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
         'Underline',
         hasField ? () => flag(TextFlag.underline) : null,
         on: _active.underline,
+      ),
+      _tool(
+        PhosphorIcons.textStrikethrough,
+        'Strikethrough',
+        hasField ? () => flag(TextFlag.strike) : null,
+        on: _active.strike,
+      ),
+      _swatchMenu(
+        tooltip: 'Text colour',
+        icon: PhosphorIcons.paintBrush,
+        enabled: hasField,
+        colors: _textColors,
+        apply: (c) => _fieldState?.applyColor(c),
+      ),
+      _swatchMenu(
+        tooltip: 'Highlight',
+        icon: PhosphorIcons.highlighter,
+        enabled: hasField,
+        colors: _highlightColors,
+        apply: (c) => _fieldState?.applyHighlight(c),
       ),
       _tool(
         PhosphorIcons.eraser,
@@ -1113,6 +1232,7 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
       _sep(),
       _chip(PhosphorIcons.table, 'Table (3 × 3)', _insertTable),
       _chip(PhosphorIcons.image, 'Picture', _insertPicture),
+      _chip(PhosphorIcons.image, 'Logo (top of paper)', _insertLogo),
     ];
   }
 
@@ -1193,6 +1313,14 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
     return [
       _chip(PhosphorIcons.info, 'Paper details', _editDetails),
       _chip(PhosphorIcons.rows, 'Header and footer', _editPageSetup),
+      _chip(PhosphorIcons.textAlignLeft, 'Logo left',
+          () => _setLogoAlign(ParaAlign.left)),
+      _chip(PhosphorIcons.textAlignCenter, 'Logo centre',
+          () => _setLogoAlign(ParaAlign.center)),
+      _chip(PhosphorIcons.textAlignRight, 'Logo right',
+          () => _setLogoAlign(ParaAlign.right)),
+      _chip(PhosphorIcons.trash, 'Remove logo',
+          _doc.header.logo == null ? null : _removeLogo),
       _chip(
         PhosphorIcons.listNumbers,
         _doc.showPageNumbers ? 'Page numbers: on' : 'Page numbers: off',
@@ -1636,6 +1764,28 @@ class _ParagraphFieldState extends State<_ParagraphField> {
     _reportAfterFrame();
   }
 
+  void applyColor(int? argb) => _restyleSelection(
+        (s) => s.copyWith(color: argb, clearColor: argb == null),
+      );
+
+  void applyHighlight(int? argb) => _restyleSelection(
+        (s) => s.copyWith(highlight: argb, clearHighlight: argb == null),
+      );
+
+  /// Applies [change] to the selection, or to the next typed text when the
+  /// caret has no selection.
+  void _restyleSelection(CharStyle Function(CharStyle) change) {
+    final sel = _ctl.selection;
+    if (!sel.isValid) return;
+    if (sel.isCollapsed) {
+      _pending = change(_pending ?? _styleAtCaret());
+      _report();
+      return;
+    }
+    widget.onRestyle(widget.para.restyle(sel.start, sel.end, change));
+    _reportAfterFrame();
+  }
+
   void clearFormat() {
     final sel = _ctl.selection;
     if (!sel.isValid) return;
@@ -1774,9 +1924,15 @@ class _StyledController extends TextEditingController {
           style: TextStyle(
             fontWeight: s.bold ? FontWeight.w700 : null,
             fontStyle: s.italic ? FontStyle.italic : null,
-            decoration: (s.underline || bad) ? TextDecoration.underline : null,
+            decoration: TextDecoration.combine([
+              if (s.underline || bad) TextDecoration.underline,
+              if (s.strike) TextDecoration.lineThrough,
+            ]),
             decorationStyle: bad ? TextDecorationStyle.wavy : null,
             decorationColor: bad ? const Color(0xFFD32F2F) : null,
+            color: s.color == null ? null : Color(s.color!),
+            backgroundColor:
+                s.highlight == null ? null : Color(s.highlight!),
             fontSize: s.size == null ? null : s.size! * scale,
           ),
         ),

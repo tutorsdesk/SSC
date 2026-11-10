@@ -27,7 +27,7 @@ enum ParaKind {
 
 enum ParaAlign { left, center, right, justify }
 
-enum TextFlag { bold, italic, underline }
+enum TextFlag { bold, italic, underline, strike }
 
 /// Option labels for MCQ/option groups, in Bengali.
 const List<String> kOptionLabels = [
@@ -140,15 +140,25 @@ class CharStyle {
   final bool bold;
   final bool italic;
   final bool underline;
+  final bool strike;
 
   /// Font size in points, or null for the block default.
   final double? size;
+
+  /// Text colour as ARGB, or null for the default colour.
+  final int? color;
+
+  /// Highlight colour as ARGB, or null for no highlight.
+  final int? highlight;
 
   const CharStyle({
     this.bold = false,
     this.italic = false,
     this.underline = false,
+    this.strike = false,
     this.size,
+    this.color,
+    this.highlight,
   });
 
   static const CharStyle plain = CharStyle();
@@ -157,26 +167,36 @@ class CharStyle {
     bool? bold,
     bool? italic,
     bool? underline,
+    bool? strike,
     double? size,
     bool clearSize = false,
+    int? color,
+    bool clearColor = false,
+    int? highlight,
+    bool clearHighlight = false,
   }) =>
       CharStyle(
         bold: bold ?? this.bold,
         italic: italic ?? this.italic,
         underline: underline ?? this.underline,
+        strike: strike ?? this.strike,
         size: clearSize ? null : (size ?? this.size),
+        color: clearColor ? null : (color ?? this.color),
+        highlight: clearHighlight ? null : (highlight ?? this.highlight),
       );
 
   bool hasFlag(TextFlag flag) => switch (flag) {
         TextFlag.bold => bold,
         TextFlag.italic => italic,
         TextFlag.underline => underline,
+        TextFlag.strike => strike,
       };
 
   CharStyle withFlag(TextFlag flag, bool on) => switch (flag) {
         TextFlag.bold => copyWith(bold: on),
         TextFlag.italic => copyWith(italic: on),
         TextFlag.underline => copyWith(underline: on),
+        TextFlag.strike => copyWith(strike: on),
       };
 
   @override
@@ -185,26 +205,38 @@ class CharStyle {
       other.bold == bold &&
       other.italic == italic &&
       other.underline == underline &&
-      other.size == size;
+      other.strike == strike &&
+      other.size == size &&
+      other.color == color &&
+      other.highlight == highlight;
 
   @override
-  int get hashCode => Object.hash(bold, italic, underline, size);
+  int get hashCode =>
+      Object.hash(bold, italic, underline, strike, size, color, highlight);
 
   Map<String, dynamic> toJson() => {
         'b': bold,
         'i': italic,
         'u': underline,
+        if (strike) 'x': true,
         if (size != null) 's': size,
+        if (color != null) 'c': color,
+        if (highlight != null) 'h': highlight,
       };
 
   factory CharStyle.fromJson(Object? raw) {
     if (raw is! Map) return plain;
     final s = raw['s'];
+    final c = raw['c'];
+    final h = raw['h'];
     return CharStyle(
       bold: raw['b'] == true,
       italic: raw['i'] == true,
       underline: raw['u'] == true,
+      strike: raw['x'] == true,
       size: s is num ? s.toDouble() : null,
+      color: c is num ? c.toInt() : null,
+      highlight: h is num ? h.toInt() : null,
     );
   }
 }
@@ -425,12 +457,20 @@ class PaperHeader {
   final String time;
   final String marks;
 
+  /// Optional logo printed at the top of the paper (letterhead).
+  final DocImage? logo;
+
+  /// Where the logo sits: left, center or right.
+  final ParaAlign logoAlign;
+
   const PaperHeader({
     this.school = '',
     this.exam = '',
     this.subject = '',
     this.time = '',
     this.marks = '',
+    this.logo,
+    this.logoAlign = ParaAlign.left,
   });
 
   bool get isEmpty =>
@@ -438,7 +478,8 @@ class PaperHeader {
       exam.trim().isEmpty &&
       subject.trim().isEmpty &&
       time.trim().isEmpty &&
-      marks.trim().isEmpty;
+      marks.trim().isEmpty &&
+      logo == null;
 
   /// Time and marks on one line, e.g. "Time: 2 hours     Marks: 100".
   String get details => [
@@ -452,6 +493,9 @@ class PaperHeader {
     String? subject,
     String? time,
     String? marks,
+    DocImage? logo,
+    bool clearLogo = false,
+    ParaAlign? logoAlign,
   }) =>
       PaperHeader(
         school: school ?? this.school,
@@ -459,6 +503,8 @@ class PaperHeader {
         subject: subject ?? this.subject,
         time: time ?? this.time,
         marks: marks ?? this.marks,
+        logo: clearLogo ? null : (logo ?? this.logo),
+        logoAlign: logoAlign ?? this.logoAlign,
       );
 
   Map<String, dynamic> toJson() => {
@@ -467,16 +513,26 @@ class PaperHeader {
         'subject': subject,
         'time': time,
         'marks': marks,
+        if (logo != null) 'logo': logo!.toJson(),
+        'logoAlign': logoAlign.name,
       };
 
   factory PaperHeader.fromJson(Map<String, dynamic>? j) {
     if (j == null) return const PaperHeader();
+    final logoJson = j['logo'];
     return PaperHeader(
       school: j['school'] as String? ?? '',
       exam: j['exam'] as String? ?? '',
       subject: j['subject'] as String? ?? '',
       time: j['time'] as String? ?? '',
       marks: j['marks'] as String? ?? '',
+      logo: logoJson is Map
+          ? DocImage.fromJson(logoJson.cast<String, dynamic>())
+          : null,
+      logoAlign: ParaAlign.values.firstWhere(
+        (a) => a.name == j['logoAlign'],
+        orElse: () => ParaAlign.left,
+      ),
     );
   }
 }
