@@ -40,9 +40,8 @@ abstract final class SavedPaperEditing {
   /// editor's document list. Reopening a paper edits the same copy.
   static Future<PaperDocument> openCopy(SavedPaper paper) async {
     final id = docIdFor(paper.id);
-    final existing = (await PaperDocumentStore.list())
-        .where((doc) => doc.id == id)
-        .toList();
+    final existing =
+        (await PaperDocumentStore.list()).where((doc) => doc.id == id).toList();
     if (existing.isNotEmpty) return existing.first;
     final doc = documentFrom(paper);
     await PaperDocumentStore.save(doc);
