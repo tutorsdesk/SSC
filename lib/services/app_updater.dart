@@ -238,10 +238,9 @@ abstract final class AppUpdater {
   ) async {
     final client = http.Client();
     try {
-      final res =
-          await client.send(http.Request('GET', update.url)).timeout(
-                const Duration(minutes: 2),
-              );
+      final res = await client.send(http.Request('GET', update.url)).timeout(
+            const Duration(minutes: 2),
+          );
       if (res.statusCode != 200) {
         throw HttpException('Download failed (${res.statusCode}).');
       }
@@ -251,7 +250,8 @@ abstract final class AppUpdater {
       final builder = BytesBuilder(copy: false);
       var received = 0;
       // Inactivity timeout: a stalled download fails, a slow one does not.
-      await for (final chunk in res.stream.timeout(const Duration(minutes: 1))) {
+      await for (final chunk
+          in res.stream.timeout(const Duration(minutes: 1))) {
         builder.add(chunk);
         received += chunk.length;
         onProgress?.call(received, total);

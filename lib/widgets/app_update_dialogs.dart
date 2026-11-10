@@ -170,9 +170,8 @@ class _DownloadDialog extends StatelessWidget {
         valueListenable: progress,
         builder: (context, p, _) {
           final fraction = p.fraction;
-          final percent = fraction == null
-              ? null
-              : '${(fraction * 100).floor()}%';
+          final percent =
+              fraction == null ? null : '${(fraction * 100).floor()}%';
           final size = p.total == null
               ? '${_mb(p.received)} MB'
               : '${_mb(p.received)} of ${_mb(p.total!)} MB';
@@ -185,7 +184,8 @@ class _DownloadDialog extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: Text(size, style: Theme.of(context).textTheme.bodySmall),
+                    child: Text(size,
+                        style: Theme.of(context).textTheme.bodySmall),
                   ),
                   if (percent != null)
                     Text(
