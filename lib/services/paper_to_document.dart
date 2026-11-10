@@ -1,4 +1,5 @@
 import '../models/paper_document.dart';
+import 'paper_document_render.dart';
 import 'paper_document_store.dart';
 import 'paper_library.dart';
 
@@ -34,6 +35,28 @@ abstract final class SavedPaperEditing {
       header: PaperHeader(subject: paper.subject, marks: '${paper.total}'),
       paragraphs: paragraphs,
     );
+  }
+
+  static Future<void> _publishChain = Future.value();
+
+  /// Makes the saved paper that [doc] is a copy of show [doc]'s pages.
+  /// The answer key is not changed. Calls run one after another.
+  static Future<void> publishPages(PaperDocument doc) {
+    final run = _publishChain.then((_) => _publish(doc));
+    _publishChain = run.catchError((_) {});
+    return run;
+  }
+
+  static Future<void> _publish(PaperDocument doc) async {
+    final entries = (await PaperLibrary.loadEntries())
+        .where((e) => e.kind == 'saved')
+        .toList();
+    for (final e in entries) {
+      if (docIdFor(e.id) != doc.id) continue;
+      final pages = await PaperDocumentRender.renderPages(doc);
+      await PaperLibrary.replaceSavedPages(e.id, pages);
+      return;
+    }
   }
 
   /// The existing editable copy of [paper], or a new one saved to the

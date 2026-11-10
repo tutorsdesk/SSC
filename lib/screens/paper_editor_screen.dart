@@ -9,6 +9,7 @@ import '../models/paper_document.dart';
 import '../services/paper_document_layout.dart';
 import '../services/paper_document_render.dart';
 import '../services/paper_document_store.dart';
+import '../services/paper_to_document.dart';
 import '../services/paper_image_codec.dart';
 import '../services/paper_spell.dart';
 import '../theme/design_tokens.dart';
@@ -681,9 +682,16 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
   /// Returns null on success, or the error that stopped the save.
   Future<Object?> _persist() async {
     final serial = _editSerial;
+    final edited = _dirty;
     try {
-      await PaperDocumentStore.save(_doc.copyWith(updatedAt: DateTime.now()));
+      final doc = _doc.copyWith(updatedAt: DateTime.now());
+      await PaperDocumentStore.save(doc);
       if (serial == _editSerial) _dirty = false;
+      // Only real edits update a saved paper, so opening a copy never
+      // replaces its original pages.
+      if (edited && doc.id.startsWith('saved_')) {
+        await SavedPaperEditing.publishPages(doc);
+      }
       return null;
     } catch (e) {
       return e;

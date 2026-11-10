@@ -1,7 +1,7 @@
 name: tutors_desk
 description: "Tutor's Desk - SSC 2027 question-paper studio for tutors"
 publish_to: 'none'
-version: 1.0.5+1
+version: 1.0.6+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

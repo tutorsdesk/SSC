@@ -108,6 +108,13 @@ class _SavedPaperScreenState extends State<SavedPaperScreen> {
       context,
       MaterialPageRoute(builder: (_) => PaperEditorScreen(document: doc)),
     );
+    // Edits to the copy may have replaced this paper's pages.
+    if (!mounted) return;
+    setState(() {
+      pages = null;
+      error = null;
+    });
+    await load();
   }
 
   Future<void> _scanSaved() async {

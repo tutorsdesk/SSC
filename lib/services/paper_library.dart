@@ -430,6 +430,64 @@ class PaperLibrary {
     return saved;
   }
 
+  /// Replaces the viewable pages of a saved paper with [rawPages] (PNG or
+  /// JPEG, one per page). The answer key, questions and other fields are kept.
+  static Future<void> replaceSavedPages(
+    String id,
+    List<Uint8List> rawPages,
+  ) async {
+    if (rawPages.isEmpty) throw StateError('The paper has no pages.');
+    final current = await savedPaper(id);
+    if (current == null) throw StateError('Saved paper not found.');
+    final dir = await _dirFor(id);
+    final sep = Platform.pathSeparator;
+    final norm = <Uint8List>[];
+    for (final raw in rawPages) {
+      norm.add(await _normalizeJpeg(raw));
+    }
+    for (var i = 0; i < norm.length; i++) {
+      await File('${dir.path}${sep}p${i + 1}.jpg').writeAsBytes(norm[i]);
+    }
+    await File('${dir.path}${sep}thumb.jpg')
+        .writeAsBytes(await _thumbFrom(norm.first));
+    for (var i = norm.length + 1; i <= current.pages; i++) {
+      final stale = File('${dir.path}${sep}p$i.jpg');
+      if (stale.existsSync()) await stale.delete();
+    }
+    final updated = SavedPaper(
+      id: current.id,
+      title: current.title,
+      subject: current.subject,
+      subjectId: current.subjectId,
+      subjectCode: current.subjectCode,
+      setCode: current.setCode,
+      total: current.total,
+      key: current.key,
+      questions: current.questions,
+      createdAt: current.createdAt,
+      pages: norm.length,
+    );
+    await File('${dir.path}${sep}paper.json')
+        .writeAsString(json.encode(updated.toJson()));
+    final entries = await loadEntries();
+    await _saveEntries([
+      for (final e in entries)
+        if (e.id == id)
+          PaperEntry(
+            id: e.id,
+            title: e.title,
+            subject: e.subject,
+            year: e.year,
+            kind: e.kind,
+            pages: norm.length,
+            createdAt: e.createdAt,
+          )
+        else
+          e,
+    ]);
+    unawaited(PaperBackup.autoSave());
+  }
+
   /// The saved paper (with its answer key) stored under entry [id], if any.
   static Future<SavedPaper?> savedPaper(String id) async {
     final f = File(

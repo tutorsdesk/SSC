@@ -45,6 +45,23 @@ abstract final class PaperDocumentRender {
     return pdf.save();
   }
 
+  /// Renders every page of [doc] as a PNG, with the same layout as [build].
+  static Future<List<Uint8List>> renderPages(PaperDocument doc) async {
+    final layout = PaperLayout.compute(doc, pdfScale);
+    final images = await decodeImages(doc);
+    final out = <Uint8List>[];
+    try {
+      for (var i = 0; i < layout.pageCount; i++) {
+        out.add(await renderPagePng(doc, layout, i, images));
+      }
+    } finally {
+      for (final img in images.values) {
+        img.dispose();
+      }
+    }
+    return out;
+  }
+
   /// Decodes every picture in [doc] (keyed by block id) for painting.
   static Future<Map<String, ui.Image>> decodeImages(PaperDocument doc) async {
     final out = <String, ui.Image>{};
