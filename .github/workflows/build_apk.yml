@@ -130,10 +130,12 @@ jobs:
     env:
       HAS_RELEASE_SIGNING: ${{ secrets.RELEASE_KEYSTORE_BASE64 != '' && secrets.RELEASE_KEYSTORE_PASSWORD != '' && secrets.RELEASE_KEY_ALIAS != '' && secrets.RELEASE_KEY_PASSWORD != '' && vars.RELEASE_CERT_SHA256 != '' }}
       RELEASE_CERT_SHA256: ${{ vars.RELEASE_CERT_SHA256 }}
-      # Every branch push publishes an installable test APK and reports it.
-      # Tags can never take this path, so a version release still requires the
-      # production keystore and still fails closed without it.
-      BUILD_TEST_APK: ${{ github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') }}
+      # PAUSED: branch pushes no longer publish test APKs. Each test build was
+      # signed with a new runner debug key, so installed copies could not update
+      # to it. Resume with: ${{ github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') }}
+      # once a stable signing key is configured. Tags never take this path, so a
+      # version release still requires the production keystore.
+      BUILD_TEST_APK: 'false'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
