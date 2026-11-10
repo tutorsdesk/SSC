@@ -175,7 +175,10 @@ class AppIcon extends StatelessWidget {
       PhosphorIcons.textHOne =>
         null,
       PhosphorIcons.textItalic ||
+      PhosphorIcons.textStrikethrough ||
       PhosphorIcons.textUnderline ||
+      PhosphorIcons.paintBrush ||
+      PhosphorIcons.highlighter ||
       PhosphorIcons.uploadSimple =>
         null,
       _ => null,
