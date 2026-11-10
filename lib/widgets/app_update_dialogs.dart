@@ -75,17 +75,27 @@ abstract final class AppUpdateDialogs {
     AppUpdate update,
   ) async {
     final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(
-      const SnackBar(
-        content: Text('Downloading the update…'),
-        duration: Duration(minutes: 10),
-      ),
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final progress = ValueNotifier<_DownloadProgress>(
+      const _DownloadProgress(0, null),
+    );
+    // The dialog stays open until the download finishes or fails.
+    final dialog = showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _DownloadDialog(progress: progress),
     );
     final File file;
     try {
-      file = await AppUpdater.download(update);
+      file = await AppUpdater.download(
+        update,
+        onProgress: (received, total) =>
+            progress.value = _DownloadProgress(received, total),
+      );
     } catch (_) {
-      messenger.hideCurrentSnackBar();
+      if (navigator.canPop()) navigator.pop();
+      await dialog;
+      progress.dispose();
       messenger.showSnackBar(
         const SnackBar(
           content: Text('The update could not be downloaded. Try again later.'),
@@ -93,7 +103,9 @@ abstract final class AppUpdateDialogs {
       );
       return;
     }
-    messenger.hideCurrentSnackBar();
+    if (navigator.canPop()) navigator.pop();
+    await dialog;
+    progress.dispose();
     final String result;
     try {
       result = await AppUpdater.install(update, file);
@@ -125,6 +137,66 @@ abstract final class AppUpdateDialogs {
       const SnackBar(
         duration: Duration(seconds: 8),
         content: Text('Follow the installer to finish the update.'),
+      ),
+    );
+  }
+}
+
+/// Bytes received so far and the total size (null when unknown).
+class _DownloadProgress {
+  final int received;
+  final int? total;
+  const _DownloadProgress(this.received, this.total);
+
+  /// 0.0–1.0, or null when the total size is unknown.
+  double? get fraction {
+    final t = total;
+    if (t == null || t <= 0) return null;
+    return (received / t).clamp(0.0, 1.0).toDouble();
+  }
+}
+
+class _DownloadDialog extends StatelessWidget {
+  final ValueListenable<_DownloadProgress> progress;
+  const _DownloadDialog({required this.progress});
+
+  static String _mb(int bytes) => (bytes / (1024 * 1024)).toStringAsFixed(1);
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Downloading update'),
+      content: ValueListenableBuilder<_DownloadProgress>(
+        valueListenable: progress,
+        builder: (context, p, _) {
+          final fraction = p.fraction;
+          final percent = fraction == null
+              ? null
+              : '${(fraction * 100).floor()}%';
+          final size = p.total == null
+              ? '${_mb(p.received)} MB'
+              : '${_mb(p.received)} of ${_mb(p.total!)} MB';
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              LinearProgressIndicator(value: fraction),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(size, style: Theme.of(context).textTheme.bodySmall),
+                  ),
+                  if (percent != null)
+                    Text(
+                      percent,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }

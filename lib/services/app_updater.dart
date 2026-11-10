@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart';
@@ -200,12 +201,15 @@ abstract final class AppUpdater {
 
   /// Downloads [update] into the temporary `updates` folder and verifies its
   /// SHA-256 before returning the file path. Throws on any mismatch.
-  static Future<File> download(AppUpdate update) async {
-    final res = await http.get(update.url).timeout(const Duration(minutes: 10));
-    if (res.statusCode != 200) {
-      throw HttpException('Download failed (${res.statusCode}).');
-    }
-    final actual = sha256.convert(res.bodyBytes).toString();
+  ///
+  /// [onProgress] is called as bytes arrive with the bytes received so far and
+  /// the total size, or null when the server does not report a size.
+  static Future<File> download(
+    AppUpdate update, {
+    void Function(int received, int? total)? onProgress,
+  }) async {
+    final bytes = await _fetch(update, onProgress);
+    final actual = sha256.convert(bytes).toString();
     if (actual != update.sha256) {
       throw const FormatException('Download did not match its checksum.');
     }
@@ -224,8 +228,38 @@ abstract final class AppUpdater {
       }
     }
     final file = File('${dir.path}${Platform.pathSeparator}${update.fileName}');
-    await file.writeAsBytes(res.bodyBytes, flush: true);
+    await file.writeAsBytes(bytes, flush: true);
     return file;
+  }
+
+  static Future<Uint8List> _fetch(
+    AppUpdate update,
+    void Function(int received, int? total)? onProgress,
+  ) async {
+    final client = http.Client();
+    try {
+      final res =
+          await client.send(http.Request('GET', update.url)).timeout(
+                const Duration(minutes: 2),
+              );
+      if (res.statusCode != 200) {
+        throw HttpException('Download failed (${res.statusCode}).');
+      }
+      final total = res.contentLength != null && res.contentLength! > 0
+          ? res.contentLength
+          : null;
+      final builder = BytesBuilder(copy: false);
+      var received = 0;
+      // Inactivity timeout: a stalled download fails, a slow one does not.
+      await for (final chunk in res.stream.timeout(const Duration(minutes: 1))) {
+        builder.add(chunk);
+        received += chunk.length;
+        onProgress?.call(received, total);
+      }
+      return builder.takeBytes();
+    } finally {
+      client.close();
+    }
   }
 
   /// Starts the installer. Android returns `started` or `needs_permission`
