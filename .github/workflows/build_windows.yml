@@ -137,15 +137,6 @@ jobs:
             throw "Windows installer was not produced."
           }
 
-      - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: tutors-desk-windows
-          path: |
-            Tutor'sDesk-Windows-Portable.zip
-            Tutor'sDesk-Windows-Setup.exe
-          if-no-files-found: error
-
       - name: Publish Windows release
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         shell: pwsh

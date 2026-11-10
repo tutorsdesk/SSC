@@ -532,19 +532,6 @@ jobs:
       # GitHub Release is only created from a version tag (git tag v1.0.0
       # && git push origin v1.0.0) so the release list stops accumulating
       # a build per push.
-      - name: Upload APK as artifact (branch build)
-        if: ${{ env.HAS_RELEASE_SIGNING == 'true' && !startsWith(github.ref, 'refs/tags/v') }}
-        uses: actions/upload-artifact@v4
-        with:
-          # mapping.txt (R8 symbol map) rides along so any minified-crash
-          # stack can be decoded against this exact build.
-          name: tutor-desk-apk-build-${{ github.run_number }}
-          path: |
-            build/app/outputs/flutter-apk/app-*-release.apk
-            build/app/outputs/mapping/release/mapping.txt
-          retention-days: 30
-          if-no-files-found: error
-
       - name: Publish GitHub Release (version tags only)
         if: ${{ env.HAS_RELEASE_SIGNING == 'true' && startsWith(github.ref, 'refs/tags/v') }}
         env:

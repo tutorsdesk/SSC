@@ -657,28 +657,36 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
 
   void _scheduleSave() {
     _saveTimer?.cancel();
-    _saveTimer = Timer(const Duration(milliseconds: 1200), _saveNow);
+    _saveTimer = Timer(const Duration(milliseconds: 1200), () => _saveNow());
   }
 
-  Future<void> _saveNow() async {
+  /// Saves now. Failures are always shown; success is shown when [announce]
+  /// is set (the Save button and Ctrl+S), so autosave stays quiet.
+  Future<void> _saveNow({bool announce = false}) async {
     _saveTimer?.cancel();
-    final ok = await _persist();
+    final error = await _persist();
     if (!mounted) return;
     setState(() {
-      _status = ok
+      _status = error == null
           ? 'Saved ${_two(DateTime.now().hour)}:${_two(DateTime.now().minute)}'
           : 'Could not save. Try again.';
     });
+    if (error != null) {
+      _snack('Could not save (${error.runtimeType}). Try again.');
+    } else if (announce) {
+      _snack('Saved');
+    }
   }
 
-  Future<bool> _persist() async {
+  /// Returns null on success, or the error that stopped the save.
+  Future<Object?> _persist() async {
     final serial = _editSerial;
     try {
       await PaperDocumentStore.save(_doc.copyWith(updatedAt: DateTime.now()));
       if (serial == _editSerial) _dirty = false;
-      return true;
-    } catch (_) {
-      return false;
+      return null;
+    } catch (e) {
+      return e;
     }
   }
 
@@ -722,7 +730,7 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
         actions: [
           IconButton(
             tooltip: 'Save',
-            onPressed: _saveNow,
+            onPressed: () => _saveNow(announce: true),
             icon: const AppIcon(PhosphorIcons.floppyDisk),
           ),
           IconButton(
@@ -740,7 +748,7 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
       body: CallbackShortcuts(
         bindings: {
           const SingleActivator(LogicalKeyboardKey.keyS, control: true):
-              _saveNow,
+              () => _saveNow(announce: true),
           const SingleActivator(LogicalKeyboardKey.keyP, control: true): () {
             if (!_busy) _export(print: true);
           },
@@ -1068,7 +1076,7 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
   }
 
   List<Widget> _fileTools() => [
-        _chip(PhosphorIcons.floppyDisk, 'Save', _saveNow),
+        _chip(PhosphorIcons.floppyDisk, 'Save', () => _saveNow(announce: true)),
         _sep(),
         _chip(
             PhosphorIcons.downloadSimple, 'Save a copy to a file', _exportCopy),
