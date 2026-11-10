@@ -463,7 +463,9 @@ jobs:
             if grep -qi 'Android Debug' certificate-check.txt; then
               echo "APK is debug-signed:"; cat certificate-check.txt; exit 1
             fi
-            actual=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' certificate-check.txt | tr '[:upper:]' '[:lower:]')
+            # apksigner prints "Signer #1 certificate SHA-256 digest:" on older
+            # builds and "V2 Signer: certificate SHA-256 digest:" on newer ones.
+            actual=$(grep -m1 'certificate SHA-256 digest:' certificate-check.txt | sed 's/.*certificate SHA-256 digest: *//' | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
             if [ "$actual" != "$expected" ]; then
               echo "Certificate pin mismatch."
               echo "expected: $expected"
