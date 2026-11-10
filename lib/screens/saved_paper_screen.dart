@@ -11,6 +11,8 @@ import '../services/paper_library.dart';
 import '../services/subscription_guard.dart';
 import '../models/subscription_entitlement.dart';
 import 'omr_scanner_screen.dart';
+import '../services/paper_to_document.dart';
+import 'paper_editor_screen.dart';
 
 class SavedPaperScreen extends StatefulWidget {
   final PaperEntry entry;
@@ -80,6 +82,34 @@ class _SavedPaperScreenState extends State<SavedPaperScreen> {
     }
   }
 
+  /// Opens an editable copy of this paper in the paper editor. The saved
+  /// paper and its answer key stay as they are.
+  Future<void> _editCopy() async {
+    final current = saved;
+    if (current == null || current.questions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This paper has no question text to edit.'),
+        ),
+      );
+      return;
+    }
+    if (!await SubscriptionGuard.require(
+      context,
+      PremiumFeature.paperEditor,
+      title: 'Question Paper Editor',
+    )) {
+      return;
+    }
+    if (!mounted) return;
+    final doc = await SavedPaperEditing.openCopy(current);
+    if (!mounted) return;
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(builder: (_) => PaperEditorScreen(document: doc)),
+    );
+  }
+
   Future<void> _scanSaved() async {
     final current = saved;
     if (current == null || !mounted) return;
@@ -104,6 +134,11 @@ class _SavedPaperScreenState extends State<SavedPaperScreen> {
         appBar: AppBar(
           title: Text(widget.entry.title),
           actions: [
+            IconButton(
+              tooltip: 'Edit a copy',
+              onPressed: busy || saved == null ? null : _editCopy,
+              icon: const AppIcon(PhosphorIcons.notePencil),
+            ),
             IconButton(
               tooltip: 'Print',
               onPressed: busy || pages == null ? null : () => action(true),
