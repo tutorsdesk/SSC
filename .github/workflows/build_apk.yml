@@ -476,46 +476,6 @@ jobs:
             echo "Certificate matches the pin."
           done
 
-      # Production-signed APKs become the permanent android-latest download and
-      # the in-app update source. Runs only after the certificate pin passed.
-      - name: Publish signed APKs as android-latest
-        if: ${{ env.HAS_RELEASE_SIGNING == 'true' && !startsWith(github.ref, 'refs/tags/') }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUN_NUMBER: ${{ github.run_number }}
-        run: |
-          set -euo pipefail
-          tag="android-latest"
-          notes="Production-signed Android build $RUN_NUMBER from ${GITHUB_SHA:0:7}. Install the arm64-v8a APK on a modern Android phone. Later builds update installed copies signed with the same release key."
-          title="Tutor's Desk for Android — Latest release"
-          git -c user.email=ci@local -c user.name=ci tag -f "$tag"
-          git -c user.email=ci@local -c user.name=ci push -f origin "refs/tags/$tag"
-          cd build/app/outputs/flutter-apk
-          python3 - <<'PY'
-          import hashlib, json, os, re
-          apks = {}
-          for name in sorted(os.listdir('.')):
-              m = re.fullmatch(r'app-(.+)-release\.apk', name)
-              if not m:
-                  continue
-              digest = hashlib.sha256(open(name, 'rb').read()).hexdigest()
-              apks[m.group(1)] = {'name': name, 'sha256': digest}
-          if not apks:
-              raise SystemExit('No release APKs found for the update manifest.')
-          with open('android-update.json', 'w') as f:
-              json.dump({'build': int(os.environ['RUN_NUMBER']), 'apks': apks}, f, indent=2)
-          PY
-          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$tag" app-*-release.apk android-update.json \
-              --repo "$GITHUB_REPOSITORY" --clobber
-            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --latest \
-              --title "$title" --notes "$notes"
-          else
-            gh release create "$tag" app-*-release.apk android-update.json \
-              --repo "$GITHUB_REPOSITORY" --latest \
-              --title "$title" --notes "$notes"
-          fi
-
       - name: Remove restored keystore
         if: always()
         run: rm -f android/app/release.keystore
