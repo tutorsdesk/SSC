@@ -5,8 +5,6 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'app_icon.dart';
-
 /// One-time permission prompt shown after a fresh install (Android only).
 ///
 /// Lists the permissions the app relies on and lets the user allow them. It
@@ -197,7 +195,7 @@ class _PermissionRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AppIcon(item.icon, color: theme.colorScheme.primary),
+          Icon(item.icon, color: theme.colorScheme.primary),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -211,8 +209,7 @@ class _PermissionRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           if (granted)
-            AppIcon(PhosphorIcons.checkCircle,
-                color: theme.colorScheme.primary)
+            Icon(PhosphorIcons.checkCircle, color: theme.colorScheme.primary)
           else
             TextButton(
               onPressed: busy ? null : onAllow,
