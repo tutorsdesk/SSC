@@ -699,7 +699,9 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
   String _publishNote() {
     if (!_doc.id.startsWith('saved_')) return '';
     final n = SavedPaperEditing.lastPublishedPages;
-    return n > 0 ? ' · saved paper updated ($n pages)' : ' · saved paper NOT updated';
+    return n > 0
+        ? ' · saved paper updated ($n pages)'
+        : ' · saved paper NOT updated';
   }
 
   /// Returns null on success, or the error that stopped the save.
