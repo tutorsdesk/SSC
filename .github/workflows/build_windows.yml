@@ -157,5 +157,6 @@ jobs:
             "Tutor'sDesk-Windows-Portable.zip" `
             "Tutor'sDesk-Windows-Setup.exe" `
             --target "${{ github.sha }}" `
-            --title "Tutor's Desk for Windows — Build ${{ github.run_number }}" `
-            --notes "Windows x64 release. Choose the Setup EXE for installation or the Portable ZIP for use without installation."
+            --prerelease `
+            --title "Tutor's Desk for Windows EXPERIMENTAL — Build ${{ github.run_number }}" `
+            --notes "EXPERIMENTAL Windows x64 build. Choose the Setup EXE for installation or the Portable ZIP for use without installation."

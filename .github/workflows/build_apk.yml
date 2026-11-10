@@ -554,6 +554,6 @@ jobs:
             build/app/outputs/flutter-apk/app-*-release.apk \
             build/app/outputs/mapping/release/mapping.txt \
             --repo "${{ github.repository }}" \
-            --title "Tutor's Desk ${GITHUB_REF_NAME} (build ${{ github.run_number }})" \
-            --notes "Tutor's Desk ${GITHUB_REF_NAME}. Most phones need app-arm64-v8a-release.apk." \
-            --latest
+            --title "Tutor's Desk ${GITHUB_REF_NAME} EXPERIMENTAL (build ${{ github.run_number }})" \
+            --notes "EXPERIMENTAL build ${GITHUB_REF_NAME}. Most phones need app-arm64-v8a-release.apk." \
+            --prerelease
