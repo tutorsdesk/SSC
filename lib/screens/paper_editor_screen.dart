@@ -745,61 +745,61 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
         if (!didPop) unawaited(_leaveAfterSave());
       },
       child: Scaffold(
-      backgroundColor: AppColors.surfaceAlt,
-      appBar: AppBar(
-        titleSpacing: 0,
-        title: InkWell(
-          onTap: _rename,
-          child: Text(
-            _doc.title,
-            overflow: TextOverflow.ellipsis,
-            maxLines: 1,
+        backgroundColor: AppColors.surfaceAlt,
+        appBar: AppBar(
+          titleSpacing: 0,
+          title: InkWell(
+            onTap: _rename,
+            child: Text(
+              _doc.title,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
           ),
+          actions: [
+            IconButton(
+              tooltip: 'Save',
+              onPressed: () => _saveNow(announce: true),
+              icon: const AppIcon(PhosphorIcons.floppyDisk),
+            ),
+            IconButton(
+              tooltip: 'Print',
+              onPressed: _busy ? null : () => _export(print: true),
+              icon: const AppIcon(PhosphorIcons.printer),
+            ),
+            IconButton(
+              tooltip: 'Share PDF',
+              onPressed: _busy ? null : () => _export(print: false),
+              icon: const AppIcon(PhosphorIcons.shareNetwork),
+            ),
+          ],
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Save',
-            onPressed: () => _saveNow(announce: true),
-            icon: const AppIcon(PhosphorIcons.floppyDisk),
-          ),
-          IconButton(
-            tooltip: 'Print',
-            onPressed: _busy ? null : () => _export(print: true),
-            icon: const AppIcon(PhosphorIcons.printer),
-          ),
-          IconButton(
-            tooltip: 'Share PDF',
-            onPressed: _busy ? null : () => _export(print: false),
-            icon: const AppIcon(PhosphorIcons.shareNetwork),
-          ),
-        ],
-      ),
-      body: CallbackShortcuts(
-        bindings: {
-          const SingleActivator(LogicalKeyboardKey.keyS, control: true): () =>
-              _saveNow(announce: true),
-          const SingleActivator(LogicalKeyboardKey.keyP, control: true): () {
-            if (!_busy) _export(print: true);
+        body: CallbackShortcuts(
+          bindings: {
+            const SingleActivator(LogicalKeyboardKey.keyS, control: true): () =>
+                _saveNow(announce: true),
+            const SingleActivator(LogicalKeyboardKey.keyP, control: true): () {
+              if (!_busy) _export(print: true);
+            },
+            const SingleActivator(LogicalKeyboardKey.keyB, control: true): () =>
+                _fieldState?.applyFlag(TextFlag.bold),
+            const SingleActivator(LogicalKeyboardKey.keyI, control: true): () =>
+                _fieldState?.applyFlag(TextFlag.italic),
+            const SingleActivator(LogicalKeyboardKey.keyU, control: true): () =>
+                _fieldState?.applyFlag(TextFlag.underline),
+            const SingleActivator(LogicalKeyboardKey.keyY, control: true):
+                _redoStep,
           },
-          const SingleActivator(LogicalKeyboardKey.keyB, control: true): () =>
-              _fieldState?.applyFlag(TextFlag.bold),
-          const SingleActivator(LogicalKeyboardKey.keyI, control: true): () =>
-              _fieldState?.applyFlag(TextFlag.italic),
-          const SingleActivator(LogicalKeyboardKey.keyU, control: true): () =>
-              _fieldState?.applyFlag(TextFlag.underline),
-          const SingleActivator(LogicalKeyboardKey.keyY, control: true):
-              _redoStep,
-        },
-        child: SafeArea(
-          child: Column(
-            children: [
-              _ribbon(),
-              Expanded(child: _sheet()),
-              _statusBar(),
-            ],
+          child: SafeArea(
+            child: Column(
+              children: [
+                _ribbon(),
+                Expanded(child: _sheet()),
+                _statusBar(),
+              ],
+            ),
           ),
         ),
-      ),
       ),
     );
   }
