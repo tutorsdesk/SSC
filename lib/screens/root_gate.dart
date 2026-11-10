@@ -11,6 +11,7 @@ import 'teacher_home_screen.dart';
 import '../widgets/app_logo.dart';
 import '../widgets/motion_policy.dart';
 import '../widgets/app_update_dialogs.dart';
+import '../widgets/permission_onboarding.dart';
 
 /// App gatekeeper —
 ///  • not signed in → welcome / sign-in screen
@@ -45,7 +46,11 @@ class _RootGateState extends State<RootGate> {
   void initState() {
     super.initState();
     _boot = _prepare();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      // First install: ask for permissions before the update check, so the
+      // two prompts never stack on top of each other.
+      await PermissionOnboarding.showIfNeeded(context);
       if (mounted) AppUpdateDialogs.checkOnStartup(context);
     });
     _hadAuthenticatedSession = AuthService.isLoggedIn;
