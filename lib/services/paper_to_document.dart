@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import '../models/paper_document.dart';
+import 'local_diagnostics.dart';
 import 'paper_document_render.dart';
 import 'paper_document_store.dart';
 import 'paper_library.dart';
@@ -47,15 +50,32 @@ abstract final class SavedPaperEditing {
     return run;
   }
 
+  /// Number of pages written by the last successful [publishPages], or 0 when
+  /// the last call found no saved paper for the document.
+  static int lastPublishedPages = 0;
+
   static Future<void> _publish(PaperDocument doc) async {
-    final entries = (await PaperLibrary.loadEntries())
-        .where((e) => e.kind == 'saved')
-        .toList();
-    for (final e in entries) {
-      if (docIdFor(e.id) != doc.id) continue;
-      final pages = await PaperDocumentRender.renderPages(doc);
-      await PaperLibrary.replaceSavedPages(e.id, pages);
-      return;
+    try {
+      final entries = (await PaperLibrary.loadEntries())
+          .where((e) => e.kind == 'saved')
+          .toList();
+      for (final e in entries) {
+        if (docIdFor(e.id) != doc.id) continue;
+        final pages = await PaperDocumentRender.renderPages(doc);
+        await PaperLibrary.replaceSavedPages(e.id, pages);
+        lastPublishedPages = pages.length;
+        return;
+      }
+      lastPublishedPages = 0;
+      unawaited(LocalDiagnostics.record(
+        StateError('No saved paper matches the edited copy ${doc.id}'),
+        StackTrace.current,
+        scope: 'saved_paper',
+      ));
+    } catch (error, stack) {
+      lastPublishedPages = 0;
+      unawaited(LocalDiagnostics.record(error, stack, scope: 'saved_paper'));
+      rethrow;
     }
   }
 

@@ -684,6 +684,7 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
     setState(() {
       _status = error == null
           ? 'Saved ${_two(DateTime.now().hour)}:${_two(DateTime.now().minute)}'
+              '${_publishNote()}'
           : 'Could not save. Try again.';
     });
     if (error != null) {
@@ -691,6 +692,14 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
     } else if (announce) {
       _snack('Saved');
     }
+  }
+
+  /// Shown after a save of a saved-paper copy, so it is clear whether the
+  /// saved paper was updated.
+  String _publishNote() {
+    if (!_doc.id.startsWith('saved_')) return '';
+    final n = SavedPaperEditing.lastPublishedPages;
+    return n > 0 ? ' · saved paper updated ($n pages)' : ' · saved paper NOT updated';
   }
 
   /// Returns null on success, or the error that stopped the save.
