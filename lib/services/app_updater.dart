@@ -131,10 +131,15 @@ abstract final class AppUpdater {
 
   /// The update for this platform, or null when up to date or unknown.
   static Future<AppUpdate?> checkForUpdate() async {
+    lastCheckFailed = false;
     if (Platform.isAndroid) return _checkAndroid();
     if (Platform.isWindows) return _checkWindows();
     return null;
   }
+
+  /// True when the last [checkForUpdate] could not reach GitHub (no network,
+  /// timeout, or an error), as opposed to finding that the build is current.
+  static bool lastCheckFailed = false;
 
   static Future<AppUpdate?> _checkAndroid() async {
     // Two kinds of release carry a manifest: the public `android-latest`
@@ -205,9 +210,13 @@ abstract final class AppUpdater {
     try {
       final res =
           await http.get(Uri.parse(url), headers: _headers).timeout(_timeout);
-      if (res.statusCode != 200) return null;
+      if (res.statusCode != 200) {
+        lastCheckFailed = true;
+        return null;
+      }
       return jsonDecode(utf8.decode(res.bodyBytes));
     } catch (_) {
+      lastCheckFailed = true;
       return null;
     }
   }

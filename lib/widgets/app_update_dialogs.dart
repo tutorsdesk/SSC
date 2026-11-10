@@ -19,9 +19,21 @@ abstract final class AppUpdateDialogs {
   static Future<void> checkOnStartup(BuildContext context) async {
     if (_checkedThisSession || _disabled) return;
     _checkedThisSession = true;
-    final update = await AppUpdater.checkForUpdate();
-    if (update == null || !context.mounted) return;
-    await _offer(context, update);
+    // The network is often not ready in the first seconds after launch. A
+    // check that could not reach GitHub is retried, instead of silently
+    // giving up for the whole session.
+    for (var attempt = 0; attempt < 4; attempt++) {
+      if (attempt > 0) {
+        await Future<void>.delayed(const Duration(seconds: 15));
+      }
+      if (!context.mounted) return;
+      final update = await AppUpdater.checkForUpdate();
+      if (update != null) {
+        if (context.mounted) await _offer(context, update);
+        return;
+      }
+      if (!AppUpdater.lastCheckFailed) return;
+    }
   }
 
   /// From Settings. Tells the user when they are already up to date.
