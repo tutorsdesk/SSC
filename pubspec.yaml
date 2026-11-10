@@ -28,7 +28,6 @@ dependencies:
   path_provider: ^2.1.0  # যোগ করা প্রশ্নপত্র ডিভাইসে সংরক্ষণ
   connectivity_plus: ^6.0.0  # offline detection (global banner + app-open error)
   url_launcher: ^6.3.0       # open the Rupantor Pay checkout
-  permission_handler: ^11.3.1  # first-run permission prompt (camera, storage, installs)
 
 dev_dependencies:
   flutter_test:
