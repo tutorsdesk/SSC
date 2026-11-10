@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/app_updater.dart';
+import 'offline_banner.dart';
 
 /// Update prompts. The check runs once per app launch, and Settings has a
 /// manual check. Nothing downloads or installs without the user tapping
@@ -15,18 +16,21 @@ abstract final class AppUpdateDialogs {
   static bool get _disabled =>
       kDebugMode || Platform.environment.containsKey('FLUTTER_TEST');
 
-  /// Once per launch, after the first screen is up.
-  static Future<void> checkOnStartup(BuildContext context) async {
+  /// Once per launch, as soon as the app is open. It does not wait for the
+  /// sign-in or the library restore, so the prompt also appears on the
+  /// startup screen.
+  static Future<void> checkOnStartup() async {
     if (_checkedThisSession || _disabled) return;
     _checkedThisSession = true;
     // The network is often not ready in the first seconds after launch. A
-    // check that could not reach GitHub is retried, instead of silently
-    // giving up for the whole session.
-    for (var attempt = 0; attempt < 4; attempt++) {
+    // check that could not reach GitHub is retried for about a minute.
+    for (var attempt = 0; attempt < 6; attempt++) {
       if (attempt > 0) {
-        await Future<void>.delayed(const Duration(seconds: 15));
+        await Future<void>.delayed(const Duration(seconds: 10));
       }
-      if (!context.mounted) return;
+      // The overlay sits under the app Navigator, so dialogs open from it.
+      final context = rootNavigatorKey.currentState?.overlay?.context;
+      if (context == null || !context.mounted) continue;
       final update = await AppUpdater.checkForUpdate();
       if (update != null) {
         if (context.mounted) await _offer(context, update);

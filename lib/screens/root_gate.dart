@@ -10,7 +10,6 @@ import 'auth_choice_screen.dart';
 import 'teacher_home_screen.dart';
 import '../widgets/app_logo.dart';
 import '../widgets/motion_policy.dart';
-import '../widgets/app_update_dialogs.dart';
 
 /// App gatekeeper —
 ///  • not signed in → welcome / sign-in screen
@@ -45,9 +44,6 @@ class _RootGateState extends State<RootGate> {
   void initState() {
     super.initState();
     _boot = _prepare();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) AppUpdateDialogs.checkOnStartup(context);
-    });
     _hadAuthenticatedSession = AuthService.isLoggedIn;
     if (AuthService.ready) {
       _authSubscription = AuthService.authChanges.listen((_) {

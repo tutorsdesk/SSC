@@ -24,6 +24,7 @@ import 'theme/app_theme.dart';
 import 'screens/root_gate.dart';
 import 'widgets/alive_background.dart';
 import 'widgets/offline_banner.dart';
+import 'widgets/app_update_dialogs.dart';
 import 'widgets/app_icon.dart';
 
 // Set by _readCrashLog(); consumed by _CrashReportGate after the first
@@ -50,6 +51,11 @@ void main() {
   SystemChrome.setSystemUIOverlayStyle(AppTheme.overlayStyle);
   // No asset, preference or network wait before the first frame.
   runApp(const ALearningApp());
+  // The update check starts with the app, not after sign-in or the library
+  // restore, so a new build is offered as soon as the app opens.
+  WidgetsBinding.instance.addPostFrameCallback(
+    (_) => unawaited(AppUpdateDialogs.checkOnStartup()),
+  );
 }
 
 List<BootStep> _bootSteps() => [
