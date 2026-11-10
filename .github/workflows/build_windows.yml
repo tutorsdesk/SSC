@@ -3,6 +3,8 @@ name: Build Windows app
 on:
   push:
     branches: ['arena/01a0ce12-ssc']
+    # Releases come only from version tags (git tag v1.0.1 && git push origin v1.0.1).
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
@@ -145,6 +147,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish Windows release
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
