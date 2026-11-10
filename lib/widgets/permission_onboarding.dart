@@ -211,8 +211,7 @@ class _PermissionRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           if (granted)
-            AppIcon(PhosphorIcons.checkCircle,
-                color: theme.colorScheme.primary)
+            AppIcon(PhosphorIcons.checkCircle, color: theme.colorScheme.primary)
           else
             TextButton(
               onPressed: busy ? null : onAllow,
