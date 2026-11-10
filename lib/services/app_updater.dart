@@ -137,30 +137,44 @@ abstract final class AppUpdater {
   }
 
   static Future<AppUpdate?> _checkAndroid() async {
-    final release = await _getJson(
-      'https://api.github.com/repos/$repo/releases/tags/android-latest',
+    // Two kinds of release carry a manifest: the public `android-latest`
+    // release and every `v*` version release. Check them all and offer the
+    // newest build, so experimental version releases reach installed apps.
+    final releases = await _getJson(
+      'https://api.github.com/repos/$repo/releases?per_page=30',
     );
-    if (release is! Map) return null;
-    final assetUrls = <String, String>{};
-    String? manifestUrl;
-    for (final a in (release['assets'] as List?) ?? const []) {
-      if (a is! Map) continue;
-      final name = '${a['name'] ?? ''}';
-      final url = '${a['browser_download_url'] ?? ''}';
-      assetUrls[name] = url;
-      if (name == 'android-update.json') manifestUrl = url;
-    }
-    if (manifestUrl == null) return null;
-    final manifest = await _getJson(manifestUrl);
-    if (manifest is! Map<String, dynamic>) return null;
+    if (releases is! List) return null;
     final abi = await _deviceAbi();
     if (abi == null) return null;
-    return AppUpdateRules.pickAndroidUpdate(
-      manifest: manifest,
-      abi: abi,
-      assetUrls: assetUrls,
-      current: currentBuild,
-    );
+    AppUpdate? best;
+    for (final r in releases) {
+      if (r is! Map || r['draft'] == true) continue;
+      final tag = '${r['tag_name'] ?? ''}';
+      if (tag != 'android-latest' && !tag.startsWith('v')) continue;
+      final assetUrls = <String, String>{};
+      String? manifestUrl;
+      for (final a in (r['assets'] as List?) ?? const []) {
+        if (a is! Map) continue;
+        final name = '${a['name'] ?? ''}';
+        final url = '${a['browser_download_url'] ?? ''}';
+        assetUrls[name] = url;
+        if (name == 'android-update.json') manifestUrl = url;
+      }
+      if (manifestUrl == null) continue;
+      final manifest = await _getJson(manifestUrl);
+      if (manifest is! Map<String, dynamic>) continue;
+      final candidate = AppUpdateRules.pickAndroidUpdate(
+        manifest: manifest,
+        abi: abi,
+        assetUrls: assetUrls,
+        current: currentBuild,
+      );
+      if (candidate != null &&
+          (best == null || candidate.build > best.build)) {
+        best = candidate;
+      }
+    }
+    return best;
   }
 
   static Future<AppUpdate?> _checkWindows() async {

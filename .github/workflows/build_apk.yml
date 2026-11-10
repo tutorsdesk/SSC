@@ -557,3 +557,30 @@ jobs:
             --title "Tutor's Desk ${GITHUB_REF_NAME} EXPERIMENTAL (build ${{ github.run_number }})" \
             --notes "EXPERIMENTAL build ${GITHUB_REF_NAME}. Most phones need app-arm64-v8a-release.apk." \
             --prerelease
+
+      - name: Attach update manifest to the version release (version tags only)
+        if: ${{ env.HAS_RELEASE_SIGNING == 'true' && startsWith(github.ref, 'refs/tags/v') }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          cd build/app/outputs/flutter-apk
+          # Same manifest format the installed app reads: build number plus
+          # each ABI's APK name and SHA-256.
+          python3 - <<'PY'
+          import hashlib, json, os, re
+          apks = {}
+          for name in sorted(os.listdir('.')):
+              m = re.fullmatch(r'app-(.+)-release\.apk', name)
+              if not m:
+                  continue
+              digest = hashlib.sha256(open(name, 'rb').read()).hexdigest()
+              apks[m.group(1)] = {'name': name, 'sha256': digest}
+          if not apks:
+              raise SystemExit('No release APKs found for the update manifest.')
+          with open('android-update.json', 'w') as f:
+              json.dump({'build': int(os.environ['RUN_NUMBER']), 'apks': apks}, f, indent=2)
+          PY
+          gh release upload "${GITHUB_REF_NAME}" android-update.json \
+            --repo "${{ github.repository }}" --clobber
