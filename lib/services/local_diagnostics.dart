@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'app_version.dart';
+
 /// Local-only, bounded diagnostics. No SDK, network sender, user identifiers,
 /// exception messages, prompts, attachments, filenames, URLs or credentials.
 /// A future remote integration needs a separate explicit privacy decision.
@@ -21,6 +23,7 @@ class LocalDiagnostics {
     ).allMatches(stack.toString()).take(12).map((m) => m.group(0)!).toList();
     return _append({
       'time': DateTime.now().toUtc().toIso8601String(),
+      'version': kAppVersion,
       'build': const String.fromEnvironment(
         'BUILD_NUMBER',
         defaultValue: 'dev',

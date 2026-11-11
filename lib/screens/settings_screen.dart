@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import '../services/app_settings.dart';
+import '../services/app_version.dart';
 import '../services/local_diagnostics.dart';
 import '../theme/app_theme.dart';
 import '../services/app_updater.dart';
@@ -134,11 +135,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     padding: EdgeInsets.zero,
                     child: ListTile(
                       title: const Text('Check for updates'),
-                      subtitle: Text(
-                        AppUpdater.currentBuild == 0
-                            ? 'Installed build: unknown'
-                            : 'Installed build ${AppUpdater.currentBuild}',
-                      ),
+                      subtitle: Text('Version $kAppVersion'),
                       trailing: const AppIcon(PhosphorIcons.caretRight),
                       onTap: () => AppUpdateDialogs.checkNow(context),
                     ),

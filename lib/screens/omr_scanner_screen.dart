@@ -18,6 +18,7 @@ import '../services/omr/omr_store.dart';
 import 'omr_analytics_screen.dart';
 import 'omr_live_scan_screen.dart';
 import '../services/app_settings.dart';
+import '../services/app_version.dart';
 import '../services/app_style.dart';
 import '../services/paper_library.dart';
 import '../services/paper_pdf.dart';
@@ -30,14 +31,6 @@ import '../widgets/glass_card.dart';
 import '../widgets/problem_dialog.dart';
 import '../widgets/workflow_progress.dart';
 import '../widgets/omr_answer_review.dart';
-
-/// CI release number baked in at build time (--dart-define). OMR
-/// failures show it so a screenshot of a reported scan identifies the
-/// build that produced it.
-const String kOmrBuildNumber = String.fromEnvironment(
-  'BUILD_NUMBER',
-  defaultValue: 'dev',
-);
 
 /// OMR স্ক্যানার — ফটো থেকে ভরাট করা OMR শিট পড়ে, answer key-এর
 /// সাথে মিলিয়ে মার্ক করে এবং ছাপার-যোগ্য স্কোর কার্ড দেয়।
@@ -516,7 +509,7 @@ class _OMrScannerScreenState extends State<OMrScannerScreen> {
             context,
             title: 'Could not read this OMR sheet',
             message: res.error ?? 'Scan failed',
-            detail: 'Build $kOmrBuildNumber',
+            detail: 'Version $kAppVersion',
           );
         }
         return;
@@ -553,7 +546,7 @@ class _OMrScannerScreenState extends State<OMrScannerScreen> {
           context,
           title: 'Scan error',
           message: '$e',
-          detail: 'Build $kOmrBuildNumber',
+          detail: 'Version $kAppVersion',
         );
       }
     }

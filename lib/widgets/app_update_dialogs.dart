@@ -50,8 +50,15 @@ abstract final class AppUpdateDialogs {
     if (!context.mounted) return;
     messenger.hideCurrentSnackBar();
     if (update == null) {
+      // A failed check is not the same as being up to date.
       messenger.showSnackBar(
-        const SnackBar(content: Text("You're on the latest version.")),
+        SnackBar(
+          content: Text(
+            AppUpdater.lastCheckFailed
+                ? "Couldn't check for updates. Check your connection and try again."
+                : "You're on the latest version.",
+          ),
+        ),
       );
       return;
     }
