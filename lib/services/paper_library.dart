@@ -172,6 +172,7 @@ class PaperLibrary {
   PaperLibrary._();
 
   static const _indexName = 'index.json';
+  static const _deletedName = 'deleted.json';
   static final _storageIdPattern = RegExp(r'^[A-Za-z0-9_-]{1,128}$');
   static final _backupFilePattern = RegExp(r'^p[1-9][0-9]*\.jpg$');
 
@@ -366,11 +367,46 @@ class PaperLibrary {
   }
 
   static Future<void> deleteEntry(String id) async {
+    // Remember the deletion first, so an older backup that still lists this
+    // paper can never bring it back on a later restore.
+    await _rememberDeleted({id});
     final dir = Directory((await root()).path + Platform.pathSeparator + id);
     if (dir.existsSync()) dir.deleteSync(recursive: true);
     final all = (await loadEntries())..removeWhere((e) => e.id == id);
     await _saveEntries(all);
     unawaited(PaperBackup.autoSave());
+  }
+
+  /// Ids of papers the teacher deleted in this account. Kept as tombstones
+  /// (and copied into every backup) so a restore never resurrects them.
+  static Future<Set<String>> deletedIds() async {
+    try {
+      final dir = await root();
+      final f = File('${dir.path}${Platform.pathSeparator}$_deletedName');
+      if (!f.existsSync()) return <String>{};
+      final raw = json.decode(f.readAsStringSync());
+      if (raw is! List) return <String>{};
+      return {
+        for (final item in raw)
+          if (item is String && isSafeStorageId(item)) item,
+      };
+    } catch (_) {
+      return <String>{};
+    }
+  }
+
+  static Future<void> _rememberDeleted(Set<String> ids) async {
+    try {
+      final known = await deletedIds();
+      final merged = {...known, ...ids.where(isSafeStorageId)};
+      if (merged.length == known.length) return;
+      final f = File(
+        '${(await root()).path}${Platform.pathSeparator}$_deletedName',
+      );
+      await f.writeAsString(json.encode(merged.toList()..sort()), flush: true);
+    } catch (_) {
+      // Worst case the tombstone is missing; the backup guard still applies.
+    }
   }
 
   /// Stores a builder paper (metadata + answer key) under kind 'saved'.
@@ -854,6 +890,7 @@ class PaperBackup {
       'ownerId': LocalAccountScope.id,
       'exportedAt': DateTime.now().toIso8601String(),
       'entries': [for (final e in entries) e.toJson()],
+      'deletedIds': (await PaperLibrary.deletedIds()).toList()..sort(),
       'files': files,
     };
   }
@@ -894,12 +931,21 @@ class PaperBackup {
     }
   }
 
+  /// True when writing [payload] would replace a real backup with an empty
+  /// library by accident. A library the teacher emptied by deleting papers
+  /// carries tombstones, so that case is allowed through and the backup
+  /// records the deletions.
+  static Future<bool> _wouldEraseBackup(Map<String, dynamic> payload) async {
+    final entries = (payload['entries'] as List?) ?? const [];
+    final deleted = (payload['deletedIds'] as List?) ?? const [];
+    return entries.isEmpty && deleted.isEmpty && await _backupExists();
+  }
+
   static Future<void> _saveOnce() async {
     String document;
     try {
       final payload = await _payload();
-      if (((payload['entries'] as List?) ?? const []).isEmpty &&
-          await _backupExists()) {
+      if (await _wouldEraseBackup(payload)) {
         // An empty library must never replace a real backup: a fresh install,
         // a wiped library or a transient read failure would otherwise erase
         // the teacher's papers — including the copy a reinstall needs.
@@ -928,8 +974,7 @@ class PaperBackup {
   static Future<String?> exportToDownload() async {
     try {
       final payload = await _payload();
-      if (((payload['entries'] as List?) ?? const []).isEmpty &&
-          await _backupExists()) {
+      if (await _wouldEraseBackup(payload)) {
         return null; // keep the existing backup instead of emptying it
       }
       return await _writeSharedCopy(json.encode(payload));
@@ -1046,6 +1091,16 @@ class PaperBackup {
         if (PaperLibrary.isSafeStorageId(entry.id)) restored.add(entry);
       } catch (_) {}
     }
+    // Papers deleted on this device, or recorded as deleted in the backup,
+    // stay deleted: an older backup must not bring them back.
+    final deleted = {
+      ...await PaperLibrary.deletedIds(),
+      ...((m['deletedIds'] as List?) ?? const [])
+          .whereType<String>()
+          .where(PaperLibrary.isSafeStorageId),
+    };
+    restored.removeWhere((entry) => deleted.contains(entry.id));
+    await PaperLibrary._rememberDeleted(deleted);
     final restoredIds = restored.map((entry) => entry.id).toSet();
     final rootDir = await PaperLibrary.root();
     final files = (m['files'] as Map).cast<String, dynamic>();

@@ -298,4 +298,21 @@ void main() {
     ]);
     expect(File('${external.path}/escape/evil.txt').existsSync(), isFalse);
   });
+
+  test('a deleted paper is not restored from an older backup', () async {
+    await PaperLibrary.addSavedPaper(paper());
+    await PaperBackup.autoSave();
+    final stale = inAppCopy().readAsBytesSync();
+
+    await PaperLibrary.deleteEntry('sp_1');
+    await PaperBackup.autoSave();
+    expect(await PaperLibrary.loadEntries(), isEmpty);
+
+    // A copy written before the deletion is put back (old backup, sync, or a
+    // reinstall reading a stale shared copy). It must not resurrect the paper.
+    inAppCopy().writeAsBytesSync(stale);
+    sharedCopy().writeAsBytesSync(stale);
+    expect(await PaperBackup.tryAutoRestore(), 0, reason: await why());
+    expect(await PaperLibrary.loadEntries(), isEmpty);
+  });
 }
