@@ -24,6 +24,7 @@ import 'omr_analytics_screen.dart';
 import 'profile_screen.dart';
 import 'subscription_screen.dart';
 import 'papers_library_screen.dart';
+import 'paper_editor_screen.dart';
 
 /// Reference-style teacher dashboard. Product workflows remain real screens;
 /// the dashboard only changes the presentation and entry points.
@@ -388,6 +389,14 @@ class _TeacherHomeScreenState extends State<TeacherHomeScreen>
                   PhosphorIcons.bookmarkSimple,
                   'My papers',
                   onTap: () => _openScreen(const PapersLibraryScreen()),
+                ),
+                _desktopNavItem(
+                  PhosphorIcons.notePencil,
+                  'Editor',
+                  onTap: () => _openPremium(
+                    const PaperEditorListScreen(),
+                    PremiumFeature.paperEditor,
+                  ),
                 ),
                 _desktopNavItem(
                   PhosphorIcons.magicWand,
@@ -1004,6 +1013,22 @@ class _TeacherHomeScreenState extends State<TeacherHomeScreen>
                     onTap: () => _openPremium(
                       const OMrScannerScreen(),
                       PremiumFeature.omrScanner,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 108,
+                  child: ReferenceActionCard(
+                    icon: PhosphorIcons.notePencil,
+                    label: 'Editor',
+                    multiline: true,
+                    locked: !SubscriptionState.instance.canUse(
+                      PremiumFeature.paperEditor,
+                    ),
+                    onTap: () => _openPremium(
+                      const PaperEditorListScreen(),
+                      PremiumFeature.paperEditor,
                     ),
                   ),
                 ),

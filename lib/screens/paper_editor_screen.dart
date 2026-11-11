@@ -1189,6 +1189,15 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
         ]),
       ),
       _chip(
+        PhosphorIcons.listNumbers,
+        'Creative question (ক খ গ ঘ)',
+        () => _insertAfterFocus([
+          DocParagraph(id: newParaId(), kind: ParaKind.question),
+          for (final label in ['ক', 'খ', 'গ', 'ঘ'])
+            DocParagraph(id: newParaId(), kind: ParaKind.normal, text: '$label) '),
+        ]),
+      ),
+      _chip(
         PhosphorIcons.checkCircle,
         'MCQ options (4)',
         () => _insertAfterFocus([
