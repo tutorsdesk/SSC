@@ -1194,7 +1194,8 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
         () => _insertAfterFocus([
           DocParagraph(id: newParaId(), kind: ParaKind.question),
           for (final label in ['ক', 'খ', 'গ', 'ঘ'])
-            DocParagraph(id: newParaId(), kind: ParaKind.normal, text: '$label) '),
+            DocParagraph(
+                id: newParaId(), kind: ParaKind.normal, text: '$label) '),
         ]),
       ),
       _chip(
