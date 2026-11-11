@@ -1414,7 +1414,9 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
       child: ClipRect(
         child: Stack(
           children: [
-            if (page == 0 && headerLinesOf(_doc.header).isEmpty)
+            if (page == 0 &&
+                headerLinesOf(_doc.header).isEmpty &&
+                _doc.header.logo == null)
               Positioned(
                 left: left,
                 width: contentW,
@@ -1537,11 +1539,31 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
 
   Widget _headerBlock(double s) {
     final lines = headerLinesOf(_doc.header);
+    final logo = _doc.header.logo;
     return InkWell(
       onTap: _editDetails,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (logo != null)
+            Padding(
+              padding: EdgeInsets.only(bottom: headerLogoGapPt * s),
+              child: Align(
+                alignment: switch (_doc.header.logoAlign) {
+                  ParaAlign.right => Alignment.centerRight,
+                  ParaAlign.center => Alignment.center,
+                  _ => Alignment.centerLeft,
+                },
+                child: SizedBox(
+                  width: PaperPage.contentWidthPt * s * logo.widthFraction,
+                  height: PaperPage.contentWidthPt *
+                      s *
+                      logo.widthFraction *
+                      logo.aspect,
+                  child: Image.memory(logo.bytes, fit: BoxFit.fill),
+                ),
+              ),
+            ),
           for (final line in lines)
             Padding(
               padding: EdgeInsets.only(bottom: line.afterPt * s),

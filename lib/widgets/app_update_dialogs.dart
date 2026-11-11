@@ -51,7 +51,7 @@ abstract final class AppUpdateDialogs {
     messenger.hideCurrentSnackBar();
     if (update == null) {
       messenger.showSnackBar(
-        const SnackBar(content: Text("You're on the latest build.")),
+        const SnackBar(content: Text("You're on the latest version.")),
       );
       return;
     }
@@ -59,16 +59,12 @@ abstract final class AppUpdateDialogs {
   }
 
   static Future<void> _offer(BuildContext context, AppUpdate update) async {
-    final current = AppUpdater.currentBuild;
     final go = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Update available'),
-        content: Text(
-          current == 0
-              ? 'Build ${update.build} is ready. Install it now?'
-              : 'Build ${update.build} is ready (you have build $current). '
-                  'Install it now?',
+        content: const Text(
+          'A new version of Tutor\'s Desk is ready. Install it now?',
         ),
         actions: [
           TextButton(
