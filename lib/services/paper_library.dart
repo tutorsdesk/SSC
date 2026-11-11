@@ -110,6 +110,10 @@ class SavedPaper {
   /// saved before pages were stored.
   final int pages;
 
+  /// The whole paper as an editable document (every question type). Null
+  /// for papers saved before full editing; those edit as MCQs only.
+  final Map<String, dynamic>? document;
+
   const SavedPaper({
     required this.id,
     required this.title,
@@ -122,6 +126,7 @@ class SavedPaper {
     required this.questions,
     required this.createdAt,
     this.pages = 0,
+    this.document,
   });
 
   Map<String, dynamic> toJson() => {
@@ -136,6 +141,7 @@ class SavedPaper {
         'questions': [for (final q in questions) q.toJson()],
         'createdAt': createdAt.toIso8601String(),
         'pages': pages,
+        if (document != null) 'document': document,
       };
 
   static SavedPaper fromJson(Map<String, dynamic> m) => SavedPaper(
@@ -156,6 +162,9 @@ class SavedPaper {
         createdAt: DateTime.tryParse(m['createdAt'] as String? ?? '') ??
             DateTime.now(),
         pages: m['pages'] as int? ?? 0,
+        document: m['document'] is Map
+            ? (m['document'] as Map).cast<String, dynamic>()
+            : null,
       );
 }
 

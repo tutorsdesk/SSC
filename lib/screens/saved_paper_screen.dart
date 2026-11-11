@@ -87,13 +87,24 @@ class _SavedPaperScreenState extends State<SavedPaperScreen> {
   /// paper and its answer key stay as they are.
   Future<void> _editCopy() async {
     final current = saved;
-    if (current == null || current.questions.isEmpty) {
+    if (current == null ||
+        (current.questions.isEmpty && current.document == null)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('This paper has no question text to edit.'),
         ),
       );
       return;
+    }
+    if (current.document == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Saved before full editing: only the MCQs can be edited. '
+            'Create this paper again to edit every question.',
+          ),
+        ),
+      );
     }
     if (!await SubscriptionGuard.require(
       context,

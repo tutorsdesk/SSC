@@ -18,6 +18,7 @@ import '../services/auth_service.dart';
 import '../services/paper_composer.dart';
 import '../services/paper_export.dart';
 import '../services/paper_library.dart';
+import '../services/paper_to_document.dart';
 import '../services/paper_usage_service.dart';
 import '../services/paper_pdf.dart';
 import '../services/subscription_guard.dart';
@@ -419,6 +420,12 @@ class _CreatePaperScreenState extends State<CreatePaperScreen> {
               ],
               createdAt: DateTime.now(),
               pages: preview!.pages.length,
+              document: SavedPaperEditing.fullDocument(
+                title: d.title,
+                subject: c.subject!.bengaliName,
+                marks: '${p.marks}',
+                paper: p,
+              ).toJson(),
             ),
             pageImages: preview!.pages,
           );
