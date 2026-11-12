@@ -151,9 +151,7 @@ abstract final class AppUpdater {
     if (releases is! List) return null;
     final abi = await _deviceAbi();
     if (abi == null) return null;
-    // Each release's manifest is a separate small download. They are fetched
-    // in parallel, so the prompt is not held back by one request at a time.
-    final pending = <Future<AppUpdate?>>[];
+    AppUpdate? best;
     for (final r in releases) {
       if (r is! Map || r['draft'] == true) continue;
       final tag = '${r['tag_name'] ?? ''}';
@@ -168,20 +166,14 @@ abstract final class AppUpdater {
         if (name == 'android-update.json') manifestUrl = url;
       }
       if (manifestUrl == null) continue;
-      final url = manifestUrl;
-      pending.add(() async {
-        final manifest = await _getJson(url);
-        if (manifest is! Map<String, dynamic>) return null;
-        return AppUpdateRules.pickAndroidUpdate(
-          manifest: manifest,
-          abi: abi,
-          assetUrls: assetUrls,
-          current: currentBuild,
-        );
-      }());
-    }
-    AppUpdate? best;
-    for (final candidate in await Future.wait(pending)) {
+      final manifest = await _getJson(manifestUrl);
+      if (manifest is! Map<String, dynamic>) continue;
+      final candidate = AppUpdateRules.pickAndroidUpdate(
+        manifest: manifest,
+        abi: abi,
+        assetUrls: assetUrls,
+        current: currentBuild,
+      );
       if (candidate != null && (best == null || candidate.build > best.build)) {
         best = candidate;
       }
