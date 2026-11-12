@@ -22,25 +22,21 @@ abstract final class AppUpdateDialogs {
   static Future<void> checkOnStartup() async {
     if (_checkedThisSession || _disabled) return;
     _checkedThisSession = true;
-    // The network is often not ready in the first seconds after launch, so a
-    // check that could not reach GitHub is retried every few seconds for
-    // about a minute. Waiting for the app's navigator does not use up a try.
-    var tries = 0;
-    for (var wait = 0; wait < 200 && tries < 20; wait++) {
+    // The network is often not ready in the first seconds after launch. A
+    // check that could not reach GitHub is retried for about a minute.
+    for (var attempt = 0; attempt < 6; attempt++) {
+      if (attempt > 0) {
+        await Future<void>.delayed(const Duration(seconds: 10));
+      }
       // The overlay sits under the app Navigator, so dialogs open from it.
       final context = rootNavigatorKey.currentState?.overlay?.context;
-      if (context == null || !context.mounted) {
-        await Future<void>.delayed(const Duration(milliseconds: 300));
-        continue;
-      }
-      tries++;
+      if (context == null || !context.mounted) continue;
       final update = await AppUpdater.checkForUpdate();
       if (update != null) {
         if (context.mounted) await _offer(context, update);
         return;
       }
       if (!AppUpdater.lastCheckFailed) return;
-      await Future<void>.delayed(const Duration(seconds: 3));
     }
   }
 
