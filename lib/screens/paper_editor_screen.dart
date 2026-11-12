@@ -1458,27 +1458,50 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
                 top: (PaperPage.heightPt - 44) * s,
                 child: Text(footer, textAlign: TextAlign.center, style: note),
               ),
-            for (final item in layout.pages[page])
-              Positioned(
-                left: left,
-                top: top + item.top,
-                width: contentW,
-                child: SizedBox(
-                  height: item.height,
-                  child: OverflowBox(
-                    alignment: Alignment.topLeft,
-                    minWidth: contentW,
-                    maxWidth: contentW,
-                    minHeight: 0,
-                    maxHeight: double.infinity,
-                    child: _blockWidget(item.index, numbers, options, s),
-                  ),
-                ),
+            // Blocks flow with their real height. The layout's estimated
+            // heights are only used for the gaps and page breaks; a fixed
+            // height made wrapped Bangla lines overlap the next block.
+            Positioned(
+              left: left,
+              top: top,
+              width: contentW,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final item in _pageRows(layout.pages[page], s, numbers,
+                      options, contentW))
+                    item,
+                ],
               ),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  List<Widget> _pageRows(
+    List<PageItem> items,
+    double s,
+    List<int?> numbers,
+    List<String?> options,
+    double contentW,
+  ) {
+    final rows = <Widget>[];
+    var bottom = 0.0;
+    for (final item in items) {
+      final gap = item.top - bottom;
+      if (gap > 0) rows.add(SizedBox(height: gap));
+      rows.add(
+        SizedBox(
+          width: contentW,
+          child: _blockWidget(item.index, numbers, options, s),
+        ),
+      );
+      bottom = item.top + item.height;
+    }
+    return rows;
   }
 
   Widget _blockWidget(
