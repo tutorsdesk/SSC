@@ -1469,8 +1469,8 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  for (final item in _pageRows(layout.pages[page], s, numbers,
-                      options, contentW))
+                  for (final item in _pageRows(
+                      layout.pages[page], s, numbers, options, contentW))
                     item,
                 ],
               ),
