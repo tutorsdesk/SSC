@@ -236,7 +236,7 @@ class _OMrScannerScreenState extends State<OMrScannerScreen> {
       // The scanner module is not on this phone yet — offer the
       // one-time download before launching.
       final download = await _offerScannerModuleDownload();
-      if (download != true) return; // in-app camera chosen / cancelled
+      if (download != true) return; // not downloaded / cancelled
     }
     try {
       final scanner = DocumentScanner(
@@ -261,6 +261,9 @@ class _OMrScannerScreenState extends State<OMrScannerScreen> {
     } catch (e) {
       if (!mounted) return;
       final why = e.toString().replaceFirst('PlatformException(', '');
+      // Closing the Google scanner without a photo is a normal exit, not a
+      // failure ("Operation cancelled"), so it must not show an error.
+      if (why.toLowerCase().contains('cancel')) return;
       await _googleScannerUnavailable(
         'It could not start on this phone. Updating Google Play '
         'services usually fixes this.',
@@ -328,7 +331,7 @@ class _OMrScannerScreenState extends State<OMrScannerScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Use in-app camera'),
+            child: const Text('Not now'),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
@@ -384,10 +387,8 @@ class _OMrScannerScreenState extends State<OMrScannerScreen> {
     return true;
   }
 
-  /// Shown when the Google scanner cannot start: offers the Play Store
-  /// fix, or the in-app camera. The fallback only happens when the user
-  /// actually chose it — after "Open Play Store" the phone must be fixed,
-  /// and the next Camera tap gets to try the Google scanner for real.
+  /// Shown when the Google scanner cannot start. The only fix offered is
+  /// the Play Store update; the next Camera tap tries the scanner again.
   Future<void> _googleScannerUnavailable(
     String reason, {
     String? detail,
@@ -402,12 +403,16 @@ class _OMrScannerScreenState extends State<OMrScannerScreen> {
       detail: detail != null ? 'Error: $detail' : null,
       dismissible: false,
       actions: [
-        ProblemAction('Open Play Store', () async {
-          try {
-            await _appChannel.invokeMethod('openPlayServices');
-          } catch (_) {}
-        }),
-        ProblemAction('Use in-app camera', _openLiveScan, primary: true),
+        ProblemAction(
+          'Open Play Store',
+          () async {
+            try {
+              await _appChannel.invokeMethod('openPlayServices');
+            } catch (_) {}
+          },
+          primary: true,
+        ),
+        ProblemAction('Close', () {}),
       ],
     );
   }

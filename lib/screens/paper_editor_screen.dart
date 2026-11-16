@@ -1372,11 +1372,29 @@ class _PaperEditorScreenState extends State<PaperEditorScreen> {
               scrollDirection: Axis.horizontal,
               child: ConstrainedBox(
                 constraints: BoxConstraints(minWidth: c.maxWidth),
-                child: Column(
-                  children: [
-                    for (var p = 0; p < layout.pageCount; p++)
-                      _pageView(layout, p, s, pageW),
-                  ],
+                child: Theme(
+                  // The app theme draws an outlined, filled box around every
+                  // text field. Paper pages are plain text, so the page
+                  // fields use no border and no fill.
+                  data: Theme.of(context).copyWith(
+                    inputDecorationTheme: const InputDecorationTheme(
+                      filled: false,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      disabledBorder: InputBorder.none,
+                      errorBorder: InputBorder.none,
+                      focusedErrorBorder: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                      isDense: true,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      for (var p = 0; p < layout.pageCount; p++)
+                        _pageView(layout, p, s, pageW),
+                    ],
+                  ),
                 ),
               ),
             ),

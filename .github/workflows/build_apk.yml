@@ -124,7 +124,7 @@ jobs:
 
   build:
     needs: security-tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # The `secrets` context is not allowed inside step `if:` conditions,
     # so the "does the keystore exist" check is staged through env here.
     env:
