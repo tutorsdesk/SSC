@@ -14,7 +14,14 @@ class AppSettings {
   static const _kPrefill = 'omr_prefill_codes';
   static const _kName = 'default_paper_name';
   static const _kReduceMotion = 'reduce_motion';
+  static const _kGlass = 'glass_effect';
+  static const _kGlassIntensity = 'glass_intensity';
   static final ValueNotifier<bool> reduceMotion = ValueNotifier(false);
+
+  /// Glossy glass look on cards and panels, plus its strength (0.0–1.0).
+  static final ValueNotifier<bool> glassEffect = ValueNotifier<bool>(false);
+  static final ValueNotifier<double> glassIntensity =
+      ValueNotifier<double>(0.5);
 
   /// Live notifier so the Settings switch repaints instantly.
   static final ValueNotifier<bool> omrPrefillCodes = ValueNotifier<bool>(true);
@@ -33,10 +40,30 @@ class AppSettings {
       final p = await SharedPreferences.getInstance();
       omrPrefillCodes.value = p.getBool(_kPrefill) ?? true;
       reduceMotion.value = p.getBool(_kReduceMotion) ?? false;
+      glassEffect.value = p.getBool(_kGlass) ?? false;
+      glassIntensity.value =
+          (p.getDouble(_kGlassIntensity) ?? 0.5).clamp(0.0, 1.0).toDouble();
       defaultPaperName.value = (p.getString(_kName) ?? '').trim();
     } catch (_) {
       // Preferences unavailable — keep the defaults.
     }
+  }
+
+  static Future<void> setGlassEffect(bool on) async {
+    glassEffect.value = on;
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setBool(_kGlass, on);
+    } catch (_) {}
+  }
+
+  static Future<void> setGlassIntensity(double value) async {
+    final v = value.clamp(0.0, 1.0).toDouble();
+    glassIntensity.value = v;
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setDouble(_kGlassIntensity, v);
+    } catch (_) {}
   }
 
   static Future<void> setReduceMotion(bool on) async {

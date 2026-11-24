@@ -129,6 +129,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 _section(
+                  'Glass effect',
+                  icon: PhosphorIcons.sparkle,
+                  child: GlassCard(
+                    padding: EdgeInsets.zero,
+                    child: ValueListenableBuilder<bool>(
+                      valueListenable: AppSettings.glassEffect,
+                      builder: (context, on, _) => Column(
+                        children: [
+                          SwitchListTile(
+                            title: const Text('Glossy glass cards'),
+                            subtitle: const Text(
+                              'Soft blur, light sheen and a glass rim on cards and panels.',
+                            ),
+                            value: on,
+                            onChanged: AppSettings.setGlassEffect,
+                          ),
+                          ValueListenableBuilder<double>(
+                            valueListenable: AppSettings.glassIntensity,
+                            builder: (context, value, _) => Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Expanded(
+                                        child: Text('Intensity'),
+                                      ),
+                                      Text('${(value * 100).round()}%'),
+                                    ],
+                                  ),
+                                  Slider(
+                                    value: value,
+                                    min: 0,
+                                    max: 1,
+                                    divisions: 10,
+                                    label: '${(value * 100).round()}%',
+                                    onChanged: on
+                                        ? (v) => AppSettings.setGlassIntensity(v)
+                                        : null,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                _section(
                   'App updates',
                   icon: PhosphorIcons.arrowsClockwise,
                   child: GlassCard(

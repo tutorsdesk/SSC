@@ -1,6 +1,8 @@
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
+import '../services/app_settings.dart';
 import '../theme/app_theme.dart';
 import 'animations.dart';
 import 'motion_policy.dart';
@@ -38,33 +40,97 @@ class GlassCard extends StatelessWidget {
     // expensive things Flutter can draw — and during a page transition two
     // screens' worth of them render at once, which is what made navigation
     // feel laggy.
-    final body = ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
-      child: RepaintBoundary(
-        child: AnimatedContainer(
-          duration: MotionPolicy.duration(context, 240),
-          curve: Curves.easeOut,
-          padding: padding,
-          decoration: BoxDecoration(
+    final body = ValueListenableBuilder<bool>(
+      valueListenable: AppSettings.glassEffect,
+      builder: (context, glass, _) => ValueListenableBuilder<double>(
+        valueListenable: AppSettings.glassIntensity,
+        builder: (context, intensity, __) {
+          final reduce = MotionPolicy.reduce(context);
+          final surface = glass
+              ? _glassSurface(context, border, intensity)
+              : _plainSurface(context, border);
+          final content = AnimatedContainer(
+            duration:
+                reduce ? Duration.zero : MotionPolicy.duration(context, 240),
+            curve: Curves.easeOut,
+            padding: padding,
+            decoration: surface,
+            child: child,
+          );
+          // Blur only when glass is on: it is costly, so the plain card stays
+          // cheap, and strength follows the intensity slider.
+          final framed = glass && intensity > 0
+              ? BackdropFilter(
+                  filter: ImageFilter.blur(
+                    sigmaX: 2 + 12 * intensity,
+                    sigmaY: 2 + 12 * intensity,
+                  ),
+                  child: content,
+                )
+              : content;
+          return ClipRRect(
             borderRadius: BorderRadius.circular(radius),
-            color: tint ?? AppTheme.surface,
-            border: Border.all(color: border, width: highlighted ? 1.3 : 1),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(.035),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: child,
-        ),
+            child: RepaintBoundary(child: framed),
+          );
+        },
       ),
     );
 
     final wrapped = Padding(padding: margin ?? EdgeInsets.zero, child: body);
     if (onTap == null) return wrapped;
     return PressableScale(onTap: onTap, child: wrapped);
+  }
+
+  BoxDecoration _plainSurface(BuildContext context, Color border) {
+    return BoxDecoration(
+      borderRadius: BorderRadius.circular(radius),
+      color: tint ?? AppTheme.surface,
+      border: Border.all(color: border, width: highlighted ? 1.3 : 1),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(.035),
+          blurRadius: 8,
+          offset: const Offset(0, 3),
+        ),
+      ],
+    );
+  }
+
+  /// Glossy glass: a translucent fill with a bright top sheen, a light rim
+  /// and a soft shadow. Strength follows the user's intensity setting.
+  BoxDecoration _glassSurface(
+    BuildContext context,
+    Color border,
+    double intensity,
+  ) {
+    final base = tint ?? Colors.white;
+    final fillAlpha = (0.92 - 0.35 * intensity).clamp(0.5, 0.95);
+    final sheen = 0.35 + 0.5 * intensity;
+    return BoxDecoration(
+      borderRadius: BorderRadius.circular(radius),
+      color: base.withOpacity(fillAlpha),
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Colors.white.withOpacity(sheen),
+          Colors.white.withOpacity(0.0),
+          Colors.black.withOpacity(0.02 * intensity),
+        ],
+        stops: const [0.0, 0.55, 1.0],
+      ),
+      border: Border.all(
+        color: Colors.white.withOpacity(0.55 + 0.4 * intensity),
+        width: highlighted ? 1.4 : 1.1,
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05 + 0.08 * intensity),
+          blurRadius: 10 + 14 * intensity,
+          offset: Offset(0, 4 + 4 * intensity),
+        ),
+      ],
+    );
   }
 }
 

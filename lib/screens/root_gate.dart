@@ -5,11 +5,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/auth_service.dart';
 import '../services/subscription_state.dart';
+import '../widgets/app_loader.dart';
 import '../widgets/animations.dart';
 import 'auth_choice_screen.dart';
 import 'teacher_home_screen.dart';
-import '../widgets/app_logo.dart';
-import '../widgets/motion_policy.dart';
 
 /// App gatekeeper —
 ///  • not signed in → welcome / sign-in screen
@@ -111,33 +110,10 @@ class _RootGateState extends State<RootGate> {
   }
 }
 
-/// A short functional loading state, without a perpetual decorative animation.
+/// Workspace loading state: the shared glossy loader.
 class _BootSplash extends StatelessWidget {
   const _BootSplash();
   @override
-  Widget build(BuildContext context) => const Scaffold(
-        backgroundColor: Colors.white,
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AppLogo(size: 64),
-              SizedBox(height: 24),
-              Text(
-                "Tutor’s Desk",
-                style: TextStyle(
-                  color: Colors.black,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              SizedBox(height: 20),
-              ActivityIndicator(size: 24, color: Colors.black),
-              SizedBox(height: 12),
-              Text('Opening your workspace…',
-                  style: TextStyle(color: Colors.grey)),
-            ],
-          ),
-        ),
-      );
+  Widget build(BuildContext context) =>
+      const AppLoader(message: 'Opening your workspace…');
 }
