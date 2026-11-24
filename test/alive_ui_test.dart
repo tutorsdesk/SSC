@@ -12,6 +12,7 @@ import 'package:tutors_desk/services/app_settings.dart';
 import 'package:tutors_desk/theme/app_theme.dart';
 import 'package:tutors_desk/widgets/alive_background.dart';
 import 'package:tutors_desk/widgets/alive_tab_stack.dart';
+import 'package:tutors_desk/widgets/app_loader.dart';
 import 'package:tutors_desk/widgets/animations.dart';
 import 'package:tutors_desk/widgets/app_icon.dart';
 import 'package:tutors_desk/widgets/boot_sequence.dart';
@@ -226,17 +227,14 @@ void main() {
 
     final scaffold = tester.widget<Scaffold>(find.byType(Scaffold).last);
     expect(scaffold.backgroundColor, Colors.white);
+    expect(find.byType(AppLoader), findsOneWidget);
     expect(
-      tester.widget<Text>(find.text('Opening your desk')).style?.color,
-      Colors.black,
-    );
-    expect(
-      tester.widget<ActivityIndicator>(find.byType(ActivityIndicator)).color,
+      tester.widget<Text>(find.text('Tutor’s Desk')).style?.color,
       Colors.black,
     );
     expect(
       tester
-          .widget<Text>(find.text('Your papers, tools and teaching workspace.'))
+          .widget<Text>(find.text('Getting your workspace ready…'))
           .style
           ?.color,
       Colors.grey,
@@ -267,19 +265,12 @@ void main() {
           ),
         ),
       );
-      expect(find.text('Opening your desk'), findsOneWidget);
+      expect(find.byType(AppLoader), findsOneWidget);
       expect(calls, ['bank']);
       expect(find.text('Workspace ready'), findsNothing);
       bank.complete();
       await tester.pump();
       expect(calls, ['bank', 'cache']);
-      expect(
-        find.byWidgetPredicate(
-          (widget) =>
-              widget is AppIcon && widget.icon == PhosphorIcons.checkCircle,
-        ),
-        findsOneWidget,
-      );
       cache.complete();
       await tester.pumpAndSettle();
       expect(find.text('Workspace ready'), findsOneWidget);
@@ -310,7 +301,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Workspace ready'), findsNothing);
     expect(find.textContaining('private detail'), findsNothing);
-    await tester.tap(find.text('Retry opening desk'));
+    await tester.tap(find.text('Try again'));
     await tester.pumpAndSettle();
     expect(firstCalls, 1);
     expect(attempts, 2);
