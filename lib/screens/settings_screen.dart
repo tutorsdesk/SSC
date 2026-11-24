@@ -167,7 +167,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     divisions: 10,
                                     label: '${(value * 100).round()}%',
                                     onChanged: on
-                                        ? (v) => AppSettings.setGlassIntensity(v)
+                                        ? (v) =>
+                                            AppSettings.setGlassIntensity(v)
                                         : null,
                                   ),
                                 ],
