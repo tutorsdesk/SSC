@@ -19,7 +19,7 @@ class AppSettings {
   static final ValueNotifier<bool> reduceMotion = ValueNotifier(false);
 
   /// Glossy glass look on cards and panels, plus its strength (0.0–1.0).
-  static final ValueNotifier<bool> glassEffect = ValueNotifier<bool>(false);
+  static final ValueNotifier<bool> glassEffect = ValueNotifier<bool>(true);
   static final ValueNotifier<double> glassIntensity =
       ValueNotifier<double>(0.5);
 
@@ -40,7 +40,7 @@ class AppSettings {
       final p = await SharedPreferences.getInstance();
       omrPrefillCodes.value = p.getBool(_kPrefill) ?? true;
       reduceMotion.value = p.getBool(_kReduceMotion) ?? false;
-      glassEffect.value = p.getBool(_kGlass) ?? false;
+      glassEffect.value = p.getBool(_kGlass) ?? true;
       glassIntensity.value =
           (p.getDouble(_kGlassIntensity) ?? 0.5).clamp(0.0, 1.0).toDouble();
       defaultPaperName.value = (p.getString(_kName) ?? '').trim();

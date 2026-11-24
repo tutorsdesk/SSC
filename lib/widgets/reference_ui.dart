@@ -1,5 +1,7 @@
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
+import '../services/app_settings.dart';
 import 'app_icon.dart';
 
 /// Visual language used by the supplied home-screen reference: solid white
@@ -116,19 +118,82 @@ class ReferenceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(radius),
-      side: const BorderSide(color: ReferencePalette.border),
     );
-    return Material(
-      color: ReferencePalette.surface,
-      shape: shape,
-      elevation: 0,
-      shadowColor: Colors.black12,
-      child: InkWell(
-        onTap: onTap,
-        customBorder: shape,
-        borderRadius: BorderRadius.circular(radius),
-        child: Padding(padding: padding, child: child),
-      ),
+    return ValueListenableBuilder<double>(
+      valueListenable: AppSettings.glassIntensity,
+      builder: (context, intensity, _) {
+        // iPhone-style frosted glass: blurred backdrop, translucent white
+        // fill, a bright top sheen, a light rim and a soft lift shadow.
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(radius),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.06 + 0.04 * intensity),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(radius),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(
+                sigmaX: 14 + 6 * intensity,
+                sigmaY: 14 + 6 * intensity,
+              ),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(radius),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withOpacity(0.92),
+                      Colors.white.withOpacity(0.78),
+                    ],
+                  ),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.9),
+                    width: 1.1,
+                  ),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  shape: shape,
+                  child: InkWell(
+                    onTap: onTap,
+                    customBorder: shape,
+                    borderRadius: BorderRadius.circular(radius),
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(radius),
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.center,
+                                  colors: [
+                                    Colors.white.withOpacity(0.55),
+                                    Colors.white.withOpacity(0),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Padding(padding: padding, child: child),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
