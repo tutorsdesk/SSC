@@ -17,7 +17,7 @@ void main() {
 
   group('Export integrity', () {
     test('the bank holds exactly 6,178 questions', () {
-      expect(allMCQs.length, 3500, reason: 'MCQ count changed');
+      expect(allMCQs.length, 4399, reason: 'MCQ count changed');
       expect(allSAQs.length, 1120, reason: 'SAQ count changed');
       expect(allCQs.length, 659, reason: 'CQ count changed');
       expect(allMCQs.length + allSAQs.length + allCQs.length, 6178);
