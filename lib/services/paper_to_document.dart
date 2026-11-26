@@ -6,6 +6,7 @@ import 'local_diagnostics.dart';
 import 'paper_document_render.dart';
 import 'paper_document_store.dart';
 import 'paper_library.dart';
+import 'mcq_stimulus.dart';
 
 /// Editable copies of saved papers.
 ///
@@ -47,7 +48,10 @@ abstract final class SavedPaperEditing {
     if (paper.mcqs.isNotEmpty) {
       add(ParaKind.heading, 'বহুনির্বাচনী প্রশ্ন');
       for (final q in paper.mcqs) {
-        add(ParaKind.question, q.questionText);
+        // The shared stimulus is plain text; only the question is numbered.
+        final split = splitMcqStimulus(q.questionText);
+        if (split.stimulus != null) add(ParaKind.normal, split.stimulus!);
+        add(ParaKind.question, split.body);
         for (final option in q.options) {
           add(ParaKind.option, option);
         }

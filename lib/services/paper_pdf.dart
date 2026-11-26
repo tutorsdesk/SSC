@@ -19,6 +19,7 @@ import '../data/questions_data.dart';
 import 'app_settings.dart';
 import 'omr/omr_geometry.dart';
 import '../theme/design_tokens.dart';
+import 'mcq_stimulus.dart';
 
 /// একটি স্ট্যাকড ভগ্নাংশ (লব উপরে, দাগ মাঝে, হর নিচে)
 class _Frac {
@@ -1565,7 +1566,11 @@ class PaperPdf {
 
       Future<void> placeMcq(int no, Question q) async {
         final fh = q.figure != null ? figH(q.figure!, colW) : 0.0;
-        final qt = rich('${_bn(no)}। ${q.questionText}', 10.5, maxWidth: colW);
+        final split = splitMcqStimulus(q.questionText);
+        final stim = split.stimulus == null
+            ? null
+            : rich(split.stimulus!, 10, maxWidth: colW);
+        final qt = rich('${_bn(no)}। ${split.body}', 10.5, maxWidth: colW);
         final opts = <_RichLine>[];
         for (int o = 0; o < q.options.length; o++) {
           opts.add(
@@ -1589,7 +1594,8 @@ class PaperPdf {
         } else {
           optH = opts.fold<double>(0, (a, o) => a + o.tp.height + 0.6 * _k);
         }
-        final need = qt.tp.height + fh + 2 * _k + optH + 4 * _k;
+        final stimH = stim == null ? 0.0 : stim.tp.height + 3 * _k;
+        final need = stimH + qt.tp.height + fh + 2 * _k + optH + 4 * _k;
         if (colY[cur] + need > bottomY) {
           if (cur == 0) {
             cur = 1;
@@ -1602,6 +1608,10 @@ class PaperPdf {
         }
         final x = colX[cur];
         double yy = colY[cur];
+        if (stim != null) {
+          paintRich(stim, x, yy);
+          yy += stim.tp.height + 3 * _k;
+        }
         paintRich(qt, x, yy);
         yy += qt.tp.height + 2 * _k;
         if (q.figure != null) {
