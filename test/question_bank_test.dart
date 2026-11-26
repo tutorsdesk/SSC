@@ -16,11 +16,11 @@ void main() {
   setUpAll(BankFixture.ensureLoaded);
 
   group('Export integrity', () {
-    test('the bank holds exactly 5,279 questions', () {
+    test('the bank holds exactly 6,178 questions', () {
       expect(allMCQs.length, 3500, reason: 'MCQ count changed');
       expect(allSAQs.length, 1120, reason: 'SAQ count changed');
       expect(allCQs.length, 659, reason: 'CQ count changed');
-      expect(allMCQs.length + allSAQs.length + allCQs.length, 5279);
+      expect(allMCQs.length + allSAQs.length + allCQs.length, 6178);
     });
 
     test('the manifest agrees with the files on disk', () {
@@ -41,7 +41,7 @@ void main() {
         counted += rows.length;
       }
       expect(counted, manifest['total']);
-      expect(counted, 5279);
+      expect(counted, 6178);
     });
 
     test('every id is unique across the whole bank', () {
@@ -53,7 +53,7 @@ void main() {
       ]) {
         expect(ids.add(id), isTrue, reason: 'duplicate id $id');
       }
-      expect(ids.length, 5279);
+      expect(ids.length, 6178);
     });
 
     test('no question lost its text, subject or chapter', () {

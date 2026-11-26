@@ -1,6 +1,7 @@
 {
   "version": 1,
   "files": [
+    "bangla_1st_mcqs.json",
     "biology_cqs.json",
     "biology_mcqs.json",
     "biology_saqs.json",
@@ -20,6 +21,7 @@
     "physics_saqs.json"
   ],
   "counts": {
+    "bangla_1st_mcqs.json": 899,
     "biology_cqs.json": 140,
     "biology_mcqs.json": 719,
     "biology_saqs.json": 280,
@@ -38,5 +40,5 @@
     "physics_mcqs.json": 750,
     "physics_saqs.json": 260
   },
-  "total": 5279
+  "total": 6178
 }
